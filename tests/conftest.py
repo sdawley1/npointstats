@@ -11,6 +11,9 @@ Sam Dawley
 # IMPORTS
 # ============================================================
 
+# ----- standard library -----
+from pathlib import Path
+
 # ----- third party -----
 import numpy as np
 import pytest
@@ -41,3 +44,9 @@ settings.load_profile("dev")
 def rng() -> np.random.Generator:
     """Seeded random generator, fresh for every test."""
     return np.random.default_rng(20261026)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run every test inside its own temporary directory (CLI defaults to -o .)."""
+    monkeypatch.chdir(tmp_path)
