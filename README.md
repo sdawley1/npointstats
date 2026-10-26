@@ -116,6 +116,10 @@ On a cluster, use one process per member (`--jobs`) and one FINUFFT thread
   for small and medium problems: a 2D N = 3000 transform took 18 s with 192
   threads and 0.07 s with one. The package therefore defaults to
   `nthreads=1` and parallelises over ensemble members.
+- On shared login nodes, set `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1`.
+  Otherwise BLAS/OpenMP start one thread per core (192 on Della login
+  nodes) and contend with other users. SLURM jobs are already limited to
+  their allocated CPUs.
 - g₂ and σ² cost ∝ N·ρ·v(r_max). The defaults (10 and 5 mean spacings) are
   cheap. Asking for r_max ≈ L/2 is inherently O(N²).
 - Benchmarks against the original code are in

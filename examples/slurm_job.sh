@@ -17,6 +17,8 @@ module purge
 eval "$(micromamba shell hook --shell bash)"
 micromamba activate npstats
 export PYTHONNOUSERSITE=1
+# one BLAS/OpenMP thread per process: parallelism comes from --jobs
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 
 # one process per CPU across ensemble members; one FINUFFT thread each
 npointstats -d ./patterns -s sf g2 nv \
