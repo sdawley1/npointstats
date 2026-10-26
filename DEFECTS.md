@@ -469,3 +469,103 @@
 - **Impact:** any non-unit diameter gives wrong c(r), c̃(k)
 - **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D046_diameter_is_used (+ properties test_bc_diameter_scaling, test_dcf_real_space_scales_with_diameter); seen failing on 363ae8f: c(r=1.5; D=2) = -0.0
 - **Fix:** diameter scales r and k: c~(k; D) = D^d c~(kD; 1)
+
+## D-047 — default S(k) shell width drops the smallest |k| in sheared cells
+- **Found:** 2026-10-26, code review of the v0.1 refactor
+- **Status:** open
+- **Where:** src/npointstats/structure_factor.py (`default_dk`), src/npointstats/ensemble.py (`Ensemble.structure_factor` default dk)
+- **Symptom:** `default_dk` is the smallest *basis-row* norm of B, not the shortest reciprocal vector; in a non-reduced cell shorter vectors fall below the first edge 0.5·dk and are discarded. The ensemble default (max over members) can drop them for every member, contradicting its docstring.
+- **Repro:** `Box([[30,0],[27,3]])`, N = 500 → `radial_average()` uses dk = 1.897 while min|k| = 0.296; 6 vectors below the first edge are lost
+- **Impact:** binned S(k) misses exactly the small-k data used for hyperuniformity in sheared/Lees–Edwards cells
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-048 — inscribed radius and NUFFT grid depend on the cell representation
+- **Found:** 2026-10-26, code review of the v0.1 refactor
+- **Status:** open
+- **Where:** src/npointstats/box.py (`inscribed_radius`, `minimum_image`), src/npointstats/structure_factor.py (`_index_bounds`)
+- **Symptom:** limits and index bounds are computed from the user's basis; a non-reduced basis of the same lattice gives a needlessly small r_max limit and a needlessly large mode grid
+- **Repro:** `Box([[30,0],[27,3]]).inscribed_radius` → 1.5, while the same lattice in reduced form allows ~2.1
+- **Impact:** g2 / number-variance range lost and S(k) slower for sheared cells; results otherwise correct
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-049 — --raw-sk output files overwrite each other for dotted names
+- **Found:** 2026-10-26, code review of the v0.1 refactor
+- **Status:** open
+- **Where:** src/npointstats/cli.py (`run`, `Path(name).stem`)
+- **Symptom:** `.stem` cuts at the last dot, so `cco__phi0.45` and `cco__phi0.50` both map to `cco__phi0.npz`; exit status 0
+- **Repro:** two members with those names → one file in `sk_raw/`
+- **Impact:** silent loss of raw S(k) output
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-050 — single-member ensembles: wrong `counts` meaning; g2 = 0 bins dropped from CSV
+- **Found:** 2026-10-26, code review of the v0.1 refactor
+- **Status:** open
+- **Where:** src/npointstats/ensemble.py (`average_binned` 1-member shortcut), src/npointstats/results.py (`save_result(nonempty_only=True)`)
+- **Symptom:** with one member, `counts` holds pair counts instead of member counts and `n_members` is missing; `save_result` then removes zero-count rows, deleting the g2 = 0 (hard-core) region
+- **Repro:** `npointstats -d one_lattice_file -s g2 --dr 0.25` → 12 of 20 bins written, with gaps
+- **Impact:** misleading single-configuration g2 files
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-051 — documented pandas recipe loses the first data row
+- **Found:** 2026-10-26, code review of the v0.1 refactor
+- **Status:** open
+- **Where:** README.md (Command line), src/npointstats/results.py (module docstring)
+- **Symptom:** the column names are on a `#` comment line, so `pandas.read_csv(path, comment="#")` takes the first data row as the header
+- **Repro:** 12-row file → DataFrame of shape (11, 7) with columns `['0.75', '1', ...]`
+- **Impact:** silently wrong data for pandas users
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-052 — submodules shadowed by same-named functions
+- **Found:** 2026-10-26, code review of the v0.1 refactor
+- **Status:** open
+- **Where:** src/npointstats/__init__.py (re-exports `structure_factor`, `pair_correlation`, `number_variance`)
+- **Symptom:** `import npointstats.structure_factor as m` yields the function, so module helpers and monkeypatching are unreachable that way
+- **Repro:** `import npointstats.pair_correlation as m; m.pair_counts` → AttributeError
+- **Impact:** confusing API; module-level helpers inaccessible by the obvious import
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-053 — uniform_edges silently extends the range when the width exceeds it
+- **Found:** 2026-10-26, code review of the v0.1 refactor
+- **Status:** open
+- **Where:** src/npointstats/binning.py (`uniform_edges`)
+- **Symptom:** at least one bin is always produced, so `dr > r_max` extends r_max to dr (or raises a misleading inscribed-radius error)
+- **Repro:** `pair_correlation(p, dr=0.4, r_max=0.3)` → edges `[0, 0.4]`, metadata r_max = 0.4
+- **Impact:** results beyond the requested (possibly invalid) range
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-054 — CLI accepts --fractional for formats that ignore it
+- **Found:** 2026-10-26, code review of the v0.1 refactor
+- **Status:** open
+- **Where:** src/npointstats/cli.py (`_reader_kwargs`)
+- **Symptom:** `-p cco --fractional` exits 0 and reads Cartesian coordinates
+- **Repro:** `npointstats -d dir -p cco --fractional -s g2` → exit 0
+- **Impact:** the user believes coordinates were converted
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-055 — morsefire reader raises a bare KeyError for incomplete scalars.dat
+- **Found:** 2026-10-26, code review of the v0.1 refactor
+- **Status:** open
+- **Where:** src/npointstats/io.py (`read_morsefire`)
+- **Symptom:** missing `nDim`/`numParticles` → `KeyError: 'nDim'` traceback from the CLI
+- **Repro:** `scalars.dat` without `nDim` → KeyError
+- **Impact:** unhelpful error
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-056 — minor API/CLI inconsistencies
+- **Found:** 2026-10-26, code review of the v0.1 refactor
+- **Status:** open
+- **Where:** src/npointstats/io.py (`read_simple(columns=...)` can only equal d), src/npointstats/cli.py (`--r-max` help says L/2, `--dk` help says 2π/L; `--raw-sk` uses each member's default k_max, not the k_max of `sf.csv`), src/npointstats/ensemble.py (`average_binned` compares edges with `allclose`)
+- **Symptom:** parameters or help text that do not match behaviour
+- **Repro:** `read_simple(path, np.eye(2), columns=1)` → ValueError although documented as "use only the first columns"
+- **Impact:** confusion; raw and binned S(k) cover different k ranges
+- **Regression test:** none yet
+- **Fix:** none yet
