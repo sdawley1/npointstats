@@ -18,6 +18,7 @@ Sam Dawley
 # ============================================================
 
 # ----- standard library -----
+import itertools
 from typing import Sequence, Tuple
 
 # ----- third party -----
@@ -30,6 +31,114 @@ from numpy.typing import ArrayLike, NDArray
 
 # Relative tolerance for treating an off-diagonal lattice entry as zero.
 ORTHORHOMBIC_RTOL = 1e-12
+
+# Lovasz parameter of the LLL reduction.
+LLL_DELTA = 0.99
+
+# Hard bound on LLL swap iterations (never reached for well-posed lattices).
+LLL_MAX_ITER = 10_000
+
+# ============================================================
+# LATTICE REDUCTION
+# ============================================================
+
+
+def _gram_schmidt(
+    b: NDArray[np.float64],
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Gram-Schmidt vectors b* (rows) and coefficients mu of the rows of b."""
+    d = b.shape[0]
+    bstar = np.zeros_like(b)
+    mu = np.zeros((d, d))
+    for i in range(d):
+        bstar[i] = b[i]
+        for j in range(i):
+            mu[i, j] = b[i] @ bstar[j] / (bstar[j] @ bstar[j])
+            bstar[i] = bstar[i] - mu[i, j] * bstar[j]
+    return bstar, mu
+
+
+def lll_reduce(lattice: ArrayLike) -> Tuple[NDArray[np.float64], NDArray[np.int64]]:
+    """
+    LLL-reduce the rows of `lattice` (Lenstra, Lenstra & Lovasz 1982), then
+    apply a greedy shortening pass (Minkowski-reduced for d <= 4).
+
+    Returns
+    -------
+    reduced : ndarray, shape (d, d)
+        Reduced basis of the same lattice, ``reduced = transform @ lattice``.
+    transform : ndarray of int, shape (d, d)
+        Unimodular integer matrix (determinant +-1).
+
+    Examples
+    --------
+    >>> reduced, u = lll_reduce([[30.0, 0.0], [27.0, 3.0]])
+    >>> np.abs(reduced).tolist(), round(abs(float(np.linalg.det(u))))
+    ([[3.0, 3.0], [15.0, 15.0]], 1)
+    """
+    b = np.array(lattice, dtype=np.float64)
+    d = b.shape[0]
+    u = np.eye(d, dtype=np.int64)
+    k, iterations = 1, 0
+    while k < d:
+        iterations += 1
+        if iterations > LLL_MAX_ITER:
+            raise RuntimeError("LLL reduction did not converge")
+        for j in range(k - 1, -1, -1):
+            _, mu = _gram_schmidt(b)
+            q = int(np.rint(mu[k, j]))
+            if q != 0:
+                b[k] -= q * b[j]
+                u[k] -= q * u[j]
+        bstar, mu = _gram_schmidt(b)
+        lhs = bstar[k] @ bstar[k]
+        rhs = (LLL_DELTA - mu[k, k - 1] ** 2) * (bstar[k - 1] @ bstar[k - 1])
+        if lhs >= rhs:
+            k += 1
+        else:
+            b[[k - 1, k]] = b[[k, k - 1]]
+            u[[k - 1, k]] = u[[k, k - 1]]
+            k = max(k - 1, 1)
+    u = _greedy_improve(u, np.asarray(lattice, dtype=np.float64))
+    # recompute from the integer transform so the basis is exact up to rounding
+    reduced = u.astype(np.float64) @ np.asarray(lattice, dtype=np.float64)
+    return reduced, u
+
+
+def _greedy_improve(
+    u: NDArray[np.int64], lattice: NDArray[np.float64]
+) -> NDArray[np.int64]:
+    """
+    Greedy pass after LLL: sort rows by length and shorten each row by adding
+    small integer combinations (coefficients in -2..2) of the shorter rows.
+
+    For d <= 4 greedy reduction yields a Minkowski-reduced basis (Nguyen and
+    Stehle, ACM Trans. Algorithms 5, 46 (2009)), which makes derived quantities
+    such as the inscribed radius independent of the input basis.
+    """
+    d = u.shape[0]
+    u = u.copy()
+    coeffs = [
+        np.array(c) for c in itertools.product(range(-2, 3), repeat=max(d - 1, 1))
+    ]
+    for _ in range(LLL_MAX_ITER):
+        b = u.astype(np.float64) @ lattice
+        order = np.argsort(np.einsum("ij,ij->i", b, b), kind="stable")
+        u, b = u[order], b[order]
+        changed = False
+        for i in range(1, d):
+            best = float(b[i] @ b[i])
+            for c in coeffs:
+                cand = b[i] + c[:i] @ b[:i]
+                norm = float(cand @ cand)
+                if norm < best * (1 - 1e-12):
+                    best, b[i] = norm, cand
+                    u[i] = u[i] + c[:i] @ u[:i]
+                    changed = True
+        if not changed:
+            return u
+    raise RuntimeError("greedy lattice reduction did not converge")
+
 
 # ============================================================
 # BOX
@@ -55,7 +164,7 @@ class Box:
     array([0., 0.])
     """
 
-    __slots__ = ("_inverse", "_lattice")
+    __slots__ = ("_inverse", "_lattice", "_reduced", "_reduced_inverse")
 
     def __init__(self, lattice: ArrayLike) -> None:
         arr = np.array(lattice, dtype=np.float64, copy=True)
@@ -76,6 +185,14 @@ class Box:
         inverse.setflags(write=False)
         self._lattice: NDArray[np.float64] = arr
         self._inverse: NDArray[np.float64] = inverse
+        # geometry (minimum image, radius limits, k grids) uses a reduced basis
+        # of the same lattice, so results do not depend on the basis supplied
+        reduced = arr.copy() if self.is_orthorhombic else lll_reduce(arr)[0]
+        reduced.setflags(write=False)
+        reduced_inverse = np.linalg.inv(reduced)
+        reduced_inverse.setflags(write=False)
+        self._reduced: NDArray[np.float64] = reduced
+        self._reduced_inverse: NDArray[np.float64] = reduced_inverse
 
     # ----- constructors -----
 
@@ -131,18 +248,42 @@ class Box:
         return np.asarray(2.0 * np.pi * self._inverse.T)
 
     @property
+    def reduced_lattice(self) -> NDArray[np.float64]:
+        """LLL-reduced basis (rows) of the same lattice; `lattice` if diagonal."""
+        return self._reduced
+
+    @property
+    def reduced_reciprocal(self) -> NDArray[np.float64]:
+        """Reciprocal basis dual to `reduced_lattice`."""
+        return np.asarray(2.0 * np.pi * self._reduced_inverse.T)
+
+    @property
     def face_widths(self) -> NDArray[np.float64]:
-        """Distances between opposite faces of the cell, one per lattice vector."""
-        return np.asarray(1.0 / np.linalg.norm(self._inverse, axis=0))
+        """Distances between opposite faces of the reduced cell."""
+        return np.asarray(1.0 / np.linalg.norm(self._reduced_inverse, axis=0))
 
     @property
     def inscribed_radius(self) -> float:
         """
-        Radius of the largest sphere that fits in the cell (half the smallest face
-        width). Minimum-image distances are exact below this radius, and no pair is
-        counted twice, so it bounds the range of g2(r) and number-variance windows.
+        Radius of the largest sphere inside the reduced cell (half its smallest
+        face width). Minimum-image distances are exact below this radius and no
+        pair is counted twice, so it bounds the range of g2(r) and of
+        number-variance windows. It depends only on the lattice, not on the
+        basis used to describe it.
         """
         return float(0.5 * np.min(self.face_widths))
+
+    @property
+    def shortest_reciprocal_norm(self) -> float:
+        """Length of the shortest non-zero reciprocal lattice vector."""
+        basis = lll_reduce(self.reciprocal)[0]
+        d = self.dimension
+        grid = np.stack(
+            [g.ravel() for g in np.meshgrid(*[np.arange(-2, 3)] * d, indexing="ij")],
+            axis=1,
+        )
+        norms = np.linalg.norm(grid[np.any(grid != 0, axis=1)] @ basis, axis=1)
+        return float(np.min(norms))
 
     @property
     def is_orthorhombic(self) -> bool:
@@ -179,15 +320,19 @@ class Box:
         s[s >= 1.0] = 0.0
         return np.asarray(s @ self._lattice)
 
+    def to_reduced_fractional(self, x: ArrayLike) -> NDArray[np.float64]:
+        """Fractional coordinates of Cartesian points in the reduced basis."""
+        return np.asarray(self._check_points(x) @ self._reduced_inverse)
+
     def minimum_image(self, dx: ArrayLike) -> NDArray[np.float64]:
         """
         Minimum-image form of displacement vectors `dx`.
 
-        Rounds fractional components to the nearest integer. The result is the
-        true shortest image whenever that image is shorter than
-        `inscribed_radius`; otherwise it is some image at least as long, which
-        is what pair statistics restricted to r < `inscribed_radius` need.
+        Rounds fractional components in the reduced basis to the nearest
+        integer. The result is the true shortest image whenever that image is
+        shorter than `inscribed_radius`; otherwise it is some image at least as
+        long, which is what statistics restricted to r < `inscribed_radius` need.
         """
-        s = self.to_fractional(dx)
+        s = self.to_reduced_fractional(dx)
         s = s - np.rint(s)
-        return np.asarray(s @ self._lattice)
+        return np.asarray(s @ self._reduced)

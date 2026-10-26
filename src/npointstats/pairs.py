@@ -83,11 +83,11 @@ def default_r_max(pattern: PointPattern) -> float:
 
 
 def _image_points(pattern: PointPattern) -> NDArray[np.float64]:
-    """Wrapped positions replicated over the 3^d neighbouring cells."""
+    """Positions in the reduced cell replicated over its 3^d neighbouring cells."""
     d = pattern.dimension
     shifts = np.array(list(itertools.product((-1, 0, 1), repeat=d)), dtype=np.float64)
-    offsets = shifts @ pattern.box.lattice
-    base = pattern.wrapped()
+    offsets = shifts @ pattern.box.reduced_lattice
+    base = pattern.reduced_wrapped()
     return np.asarray((base[None, :, :] + offsets[:, None, :]).reshape(-1, d))
 
 
@@ -133,7 +133,7 @@ def pair_counts(pattern: PointPattern, edges: ArrayLike) -> NDArray[np.int64]:
         target = cKDTree(x, boxsize=boxsize)
     else:
         boxsize = None
-        x = pattern.wrapped()
+        x = pattern.reduced_wrapped()
         target = cKDTree(_image_points(pattern))
     nbins = e.size - 1
     counts = np.zeros(nbins, dtype=np.int64)

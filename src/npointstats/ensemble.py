@@ -280,11 +280,12 @@ class Ensemble:
         Ensemble-averaged, radially binned S(k).
 
         Defaults: `k_max` is the smallest member default (3 x 2 pi rho^(1/d));
-        `dk` is the largest member reciprocal spacing, so every bin is populated
-        for every member.
+        `dk` is the smallest shortest-reciprocal-vector length over members, so
+        no member has wave vectors below the first bin edge dk/2 (bins a member
+        does not populate are averaged over the members that do; see `counts`).
         """
         cut = min(default_k_max(p) for p in self) if k_max is None else float(k_max)
-        width = max(default_dk(p.box) for p in self) if dk is None else float(dk)
+        width = min(default_dk(p.box) for p in self) if dk is None else float(dk)
         kw = {"k_max": cut, "dk": width, "method": method, "nthreads": nthreads}
         results = _run(_sf_worker, [(p, kw) for p in self], jobs)
         return average_binned(results)

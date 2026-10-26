@@ -472,23 +472,23 @@
 
 ## D-047 — default S(k) shell width drops the smallest |k| in sheared cells
 - **Found:** 2026-10-26, code review of the v0.1 refactor
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/npointstats/structure_factor.py (`default_dk`), src/npointstats/ensemble.py (`Ensemble.structure_factor` default dk)
 - **Symptom:** `default_dk` is the smallest *basis-row* norm of B, not the shortest reciprocal vector; in a non-reduced cell shorter vectors fall below the first edge 0.5·dk and are discarded. The ensemble default (max over members) can drop them for every member, contradicting its docstring.
 - **Repro:** `Box([[30,0],[27,3]])`, N = 500 → `radial_average()` uses dk = 1.897 while min|k| = 0.296; 6 vectors below the first edge are lost
 - **Impact:** binned S(k) misses exactly the small-k data used for hyperuniformity in sheared/Lees–Edwards cells
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_review.py::test_regression_D047_default_dk_keeps_smallest_k; seen failing before the fix: dk 1.8966 vs shortest |k| 0.2962
+- **Fix:** default dk = Box.shortest_reciprocal_norm; ensemble default = finest member spacing
 
 ## D-048 — inscribed radius and NUFFT grid depend on the cell representation
 - **Found:** 2026-10-26, code review of the v0.1 refactor
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/npointstats/box.py (`inscribed_radius`, `minimum_image`), src/npointstats/structure_factor.py (`_index_bounds`)
 - **Symptom:** limits and index bounds are computed from the user's basis; a non-reduced basis of the same lattice gives a needlessly small r_max limit and a needlessly large mode grid
 - **Repro:** `Box([[30,0],[27,3]]).inscribed_radius` → 1.5, while the same lattice in reduced form allows ~2.1
 - **Impact:** g2 / number-variance range lost and S(k) slower for sheared cells; results otherwise correct
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_review.py::test_regression_D048_limits_independent_of_basis (+ property test_regression_D048_change_of_basis_invariance); seen failing before the fix: inscribed radius 1.5 for the sheared basis vs 1.358 vs 1.5 across equivalent bases
+- **Fix:** Box LLL-reduces (delta 0.99) plus a greedy Minkowski pass; minimum image, inscribed radius, NUFFT index grid and image shifts use the reduced basis (3000-trial stress check: 0 mismatches)
 
 ## D-049 — --raw-sk output files overwrite each other for dotted names
 - **Found:** 2026-10-26, code review of the v0.1 refactor

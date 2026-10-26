@@ -141,8 +141,8 @@ def default_k_max(pattern: PointPattern) -> float:
 
 
 def default_dk(box: Box) -> float:
-    """Default shell width: the smallest reciprocal lattice vector norm."""
-    return float(np.min(np.linalg.norm(box.reciprocal, axis=1)))
+    """Default shell width: the length of the shortest reciprocal lattice vector."""
+    return box.shortest_reciprocal_norm
 
 
 def shell_edges(dk: float, k_max: float) -> NDArray[np.float64]:
@@ -156,17 +156,14 @@ def shell_edges(dk: float, k_max: float) -> NDArray[np.float64]:
 
 
 def _index_bounds(box: Box, k_max: float) -> NDArray[np.int64]:
-    """Largest |n_i| that can satisfy |n @ B| <= k_max: k_max |a_i| / (2 pi)."""
-    bound = np.floor(k_max * np.linalg.norm(box.lattice, axis=1) / (2.0 * np.pi) + 1e-9)
+    """Largest |n_i| (reduced basis) allowing |n @ B| <= k_max: k_max |a_i| / 2 pi."""
+    norms = np.linalg.norm(box.reduced_lattice, axis=1)
+    bound = np.floor(k_max * norms / (2.0 * np.pi) + 1e-9)
     return bound.astype(np.int64)
 
 
-def wavevector_indices(box: Box, k_max: float) -> NDArray[np.int64]:
-    """
-    Integer indices n of all reciprocal vectors k = n @ B with 0 < |k| <= k_max.
-
-    Returned sorted by |k|; the set is closed under n -> -n.
-    """
+def _reduced_indices(box: Box, k_max: float) -> NDArray[np.int64]:
+    """Indices n (reduced basis) of all k = n @ B_red with 0 < |k| <= k_max, by |k|."""
     if not k_max > 0:
         raise ValueError(f"k_max must be positive, got {k_max}")
     bounds = _index_bounds(box, k_max)
@@ -175,10 +172,21 @@ def wavevector_indices(box: Box, k_max: float) -> NDArray[np.int64]:
         raise ValueError(f"k_max={k_max:g} needs {n_modes} modes (> {MAX_MODES})")
     axes = [np.arange(-b, b + 1, dtype=np.int64) for b in bounds]
     grid = np.stack([g.ravel() for g in np.meshgrid(*axes, indexing="ij")], axis=1)
-    kmag = np.linalg.norm(grid @ box.reciprocal, axis=1)
+    kmag = np.linalg.norm(grid @ box.reduced_reciprocal, axis=1)
     keep = (kmag <= k_max * (1 + 1e-12)) & np.any(grid != 0, axis=1)
     order = np.argsort(kmag[keep], kind="stable")
     return np.asarray(grid[keep][order])
+
+
+def wavevector_indices(box: Box, k_max: float) -> NDArray[np.int64]:
+    """
+    Integer indices n of all reciprocal vectors k = n @ B with 0 < |k| <= k_max.
+
+    Indices refer to `box.reciprocal` (the basis the box was given in), are
+    sorted by |k|, and the set is closed under n -> -n.
+    """
+    k = _reduced_indices(box, k_max) @ box.reduced_reciprocal
+    return np.asarray(np.rint(k @ box.lattice.T / (2.0 * np.pi)).astype(np.int64))
 
 
 # ============================================================
@@ -195,7 +203,7 @@ def _rho_nufft(
         raise ValueError(f"method='nufft' supports d = 1, 2, 3, got d = {d}")
     bounds = np.max(np.abs(indices), axis=0)
     n_modes = tuple(int(2 * b + 1) for b in bounds)
-    phases = 2.0 * np.pi * pattern.fractional()
+    phases = 2.0 * np.pi * pattern.reduced_fractional()
     coords = [np.ascontiguousarray(phases[:, i]) for i in range(d)]
     weights = np.ones(pattern.n_points, dtype=np.complex128)
     grid = _NUFFT_TYPE1[d](
@@ -271,10 +279,10 @@ def structure_factor(
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS}, got {method!r}")
     cut = default_k_max(pattern) if k_max is None else float(k_max)
-    indices = wavevector_indices(pattern.box, cut)
+    indices = _reduced_indices(pattern.box, cut)
     if indices.shape[0] == 0:
         raise ValueError(f"no reciprocal vectors with |k| <= k_max={cut:g}")
-    k_vectors = indices @ pattern.box.reciprocal
+    k_vectors = indices @ pattern.box.reduced_reciprocal
     if method == "nufft":
         if nthreads < 1:
             raise ValueError(f"nthreads must be >= 1, got {nthreads}")

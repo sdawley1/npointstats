@@ -140,9 +140,11 @@ def window_counts(
     ndarray of int, shape (W, R)
     """
     r = _check_radii(pattern, radii)
-    c = pattern.box.wrap(
-        np.asarray(centers, dtype=np.float64).reshape(-1, pattern.dimension)
-    )
+    raw = np.asarray(centers, dtype=np.float64).reshape(-1, pattern.dimension)
+    sc = pattern.box.to_reduced_fractional(raw)
+    sc = sc - np.floor(sc)
+    sc[sc >= 1.0] = 0.0
+    c = sc @ pattern.box.reduced_lattice
     if pattern.box.is_orthorhombic:
         boxsize = np.diag(pattern.box.lattice).copy()
         pts = pattern.fractional() * boxsize

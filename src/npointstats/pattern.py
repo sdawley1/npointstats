@@ -117,3 +117,14 @@ class PointPattern:
         s = s - np.floor(s)
         s[s >= 1.0] = 0.0
         return np.asarray(s)
+
+    def reduced_fractional(self) -> NDArray[np.float64]:
+        """Fractional coordinates in the box's reduced basis, wrapped into [0, 1)^d."""
+        s = self._box.to_reduced_fractional(self._positions)
+        s = s - np.floor(s)
+        s[s >= 1.0] = 0.0
+        return np.asarray(s)
+
+    def reduced_wrapped(self) -> NDArray[np.float64]:
+        """Positions mapped into the primary cell of the reduced basis (new array)."""
+        return np.asarray(self.reduced_fractional() @ self._box.reduced_lattice)
