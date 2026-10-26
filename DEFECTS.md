@@ -142,23 +142,23 @@
 
 ## D-015 — minimum image uses lattice-vector norms (wrong for non-orthogonal boxes)
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_npt_correlation.py:133-213 (`dist_matrix_1d/2d/3d`); utils/geom.py:115-151 (`nearest_image`)
 - **Symptom:** each Cartesian component is wrapped by `|a_i|`, which is the period along axis i only when the box is axis-aligned and orthogonal
 - **Repro:** box `[[1, 0], [0.5, 0.866]]`, points (0, 0) and (0.5, 0.866) (a lattice translate, true distance 0) → reported distance ≈ 0.518
 - **Impact:** wrong g2 for triangular, sheared, or triclinic cells
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_geometry.py::test_regression_D015_triclinic_minimum_image (+ property test_regression_D015_lattice_translates_vanish); seen failing on 363ae8f: legacy dist_matrix_2d gives 0.5176 for a lattice translate
+- **Fix:** npointstats.box.Box.minimum_image rounds fractional coordinates; exact below Box.inscribed_radius for any cell shape
 
 ## D-016 — nearest_image mutates its argument in place
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/geom.py:132-136 (`nearest_image`, p2 is None branch)
 - **Symptom:** `p1[i] -= k` edits the caller's array
 - **Repro:** `p = np.array([1.5, 0.2]); nearest_image(np.eye(2), p); p` → `[0.5, 0.2]`
 - **Impact:** callers (e.g. CONFIGURATIONS/RSA/rsa.py imports a copy of this function) see silently moved points
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_geometry.py::test_regression_D016_wrap_does_not_mutate (+ property test_regression_D016_no_mutation_property); seen failing on 363ae8f: legacy nearest_image left input as [0.5, 0.2]
+- **Fix:** Box.wrap/minimum_image/to_fractional return new arrays; PointPattern stores a read-only copy
 
 ## D-017 — sample_xd_g2 silently divides delta_r by the box length
 - **Found:** 2026-10-26, during the repository audit

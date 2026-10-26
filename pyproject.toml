@@ -1,0 +1,102 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "npointstats"
+dynamic = ["version"]
+description = "Structure factor, pair correlation, and number variance of periodic point patterns"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Sam Dawley", email = "sd2402@princeton.edu" }]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "finufft>=2.2",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Physics",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+dev = [
+    "hypothesis>=6.80",
+    "mypy>=1.8",
+    "pre-commit>=3.5",
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+npointstats = "npointstats.cli:main"
+
+[tool.hatch.version]
+path = "src/npointstats/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/npointstats"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/npointstats", "tests", "README.md", "LICENSE", "CHANGELOG.md", "DEFECTS.md"]
+
+# ============================================================
+# TESTING
+# ============================================================
+
+[tool.pytest.ini_options]
+minversion = "7.4"
+testpaths = ["tests", "src/npointstats"]
+pythonpath = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--doctest-modules",
+    "--import-mode=importlib",
+]
+filterwarnings = ["error"]
+markers = [
+    "slow: large-N or long-running checks (deselect with '-m \"not slow\"')",
+]
+xfail_strict = true
+
+[tool.coverage.run]
+source = ["npointstats"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = ["if __name__ == .__main__.:", "raise NotImplementedError"]
+
+# ============================================================
+# LINTING AND TYPING
+# ============================================================
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "N", "NPY", "SIM", "RUF", "UP", "C4", "PT"]
+# House style uses typing.Dict/List/Tuple; allow non-ASCII math symbols in docstrings.
+ignore = ["UP006", "UP035", "UP007", "UP045", "RUF001", "RUF002", "RUF003", "N803", "N806"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["N802"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+files = ["src/npointstats"]
+
+[[tool.mypy.overrides]]
+module = ["finufft", "finufft.*", "scipy", "scipy.*"]
+ignore_missing_imports = true
