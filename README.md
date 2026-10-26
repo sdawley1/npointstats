@@ -11,9 +11,10 @@ Lado radial Fourier transforms.
 - g₂(r) and σ²(R) from chunked KD-tree queries: memory stays bounded at any N.
 - Reproducible: seeded number-variance windows, sorted file order, and
   parallel runs that match serial runs exactly.
-- Tested: ~390 unit, integration, property (Hypothesis) and regression tests,
+- Tested: ~400 unit, integration, property (Hypothesis) and regression tests,
   97 % line coverage; every defect found in the original code is logged in
-  [`DEFECTS.md`](DEFECTS.md) with a regression test.
+  [`DEFECTS.md`](DEFECTS.md) with a regression test (including the ten found
+  in an independent review of the new code).
 
 ## Installation
 
@@ -57,13 +58,15 @@ nps.save_result(ens.structure_factor(jobs=8), "sf.csv")
 ```bash
 npointstats -d patterns/ -s sf g2 nv --jobs 8 --seed 1 --out results/
 npointstats -d data/ -p simple --box 161.80216 161.80216 -s nv    # plain columns
+npointstats -d data/ -p simple --box 50 50 --columns 1 2 -s g2     # skip an id column
 python -m npointstats --help
 ```
 
 The command writes `sf.csv`, `g2.csv` and `nv.csv`, each with a commented
 metadata header. `--raw-sk` also writes the unbinned S(k) of each member to
-`sk_raw/*.npz`. Read results back with `npointstats.load_table(path)`,
-`numpy.loadtxt(path, delimiter=",")`, or `pandas.read_csv(path, comment="#")`.
+`sk_raw/<file name>.npz`. Each CSV has `#` metadata lines followed by one
+header row; read it back with `npointstats.load_table(path)` (data, column
+names, metadata) or `pandas.read_csv(path, comment="#")`.
 On a cluster, use one process per member (`--jobs`) and one FINUFFT thread
 (`--nthreads 1`, the default); see `examples/slurm_job.sh`.
 
@@ -90,9 +93,11 @@ On a cluster, use one process per member (`--jobs`) and one FINUFFT thread
   [j·dr, (j+1)·dr). All bins are half-open, [lo, hi).
 - **g₂ normalisation.** g₂ = n_pairs·V / (N(N−1)[v(r_{i+1}) − v(r_i)]), with
   exact d-ball shell volumes, so a binomial (uniform random) pattern has
-  E[g₂] = 1. r_max cannot exceed the cell's inscribed radius, which is half
-  the smallest face separation and is where the minimum image stops being
-  unique.
+  E[g₂] = 1. r_max cannot exceed the inscribed radius of the cell, which is
+  half the smallest face separation of the *reduced* cell. Internally each
+  `Box` LLL/Minkowski-reduces its lattice, so this limit, the minimum image,
+  and the S(k) wave-vector grid depend only on the lattice, not on the basis
+  you supply (e.g. a sheared Lees–Edwards cell).
 - **Number variance.** N(R) counts points strictly inside a window of
   radius R centred at a uniform random point. σ²(R) is the sample variance
   (ddof = 1). `number_variance_from_sk` uses the exact torus identity
@@ -137,7 +142,7 @@ On a cluster, use one process per member (`--jobs`) and one FINUFFT thread
 | `sample_xd_g2(x, lv, delta_r)` | `pair_correlation(pattern, dr=..., r_max=...)` (dr is absolute) |
 | `sample_xd_nv(x, lv)` (freud) | `number_variance(pattern, radii, n_windows, seed)` |
 | `utils/approx/*`, `utils/nft/*` | `npointstats.theory` (`py_*`, `bc_*`, `radial_fourier_transform`) |
-| `sf_res.txt`, `sf_bin.txt` | `sf.csv` (binned) and `--raw-sk` → `sk_raw/*.npz` |
+| `sf_res.txt`, `sf_bin.txt` | `sf.csv` (binned) and `--raw-sk` → `sk_raw/<file>.npz` |
 
 Numbers change wherever the original code had a defect (see `DEFECTS.md`):
 - g₂ at small r rises by the shell-volume correction (2.5 % at contact for
@@ -150,7 +155,7 @@ The original code is preserved in the first commit (`363ae8f`).
 ## Development
 
 ```bash
-pytest                                   # ~390 tests, ~35 s
+pytest                                   # ~400 tests, ~20 s
 pytest --hypothesis-profile=thorough     # 2000 examples per property
 pytest --cov                             # coverage report
 ruff check . && ruff format --check . && mypy

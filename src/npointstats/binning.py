@@ -67,7 +67,12 @@ class BinnedResult:
         return np.asarray(0.5 * (self.edges[:-1] + self.edges[1:]))
 
     def to_array(self, nonempty_only: bool = False) -> NDArray[np.float64]:
-        """(B, 7) array: lower edge, upper edge, centre, x_mean, mean, sem, count."""
+        """
+        (B, 7) array: lower edge, upper edge, centre, x_mean, mean, sem, count.
+
+        With `nonempty_only`, rows without data (NaN mean) are dropped; bins
+        whose value is a genuine zero (e.g. g2 inside a hard core) are kept.
+        """
         table = np.column_stack(
             [
                 self.edges[:-1],
@@ -79,7 +84,7 @@ class BinnedResult:
                 self.counts.astype(np.float64),
             ]
         )
-        return np.asarray(table[self.counts > 0] if nonempty_only else table)
+        return np.asarray(table[np.isfinite(self.mean)] if nonempty_only else table)
 
 
 # ============================================================
@@ -88,12 +93,14 @@ class BinnedResult:
 
 
 def uniform_edges(width: float, stop: float, start: float = 0.0) -> NDArray[np.float64]:
-    """Edges start, start + width, ... up to the last edge <= stop (at least 1 bin)."""
+    """Edges start, start + width, ... up to the last edge <= stop."""
     if not width > 0:
         raise ValueError(f"bin width must be positive, got {width}")
     if not stop > start:
         raise ValueError(f"stop ({stop}) must exceed start ({start})")
-    nbins = max(1, int(np.floor((stop - start) / width + 1e-9)))
+    nbins = int(np.floor((stop - start) / width + 1e-9))
+    if nbins < 1:
+        raise ValueError(f"bin width {width:g} exceeds the range [{start:g}, {stop:g}]")
     return np.asarray(start + width * np.arange(nbins + 1, dtype=np.float64))
 
 

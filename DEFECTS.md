@@ -492,33 +492,33 @@
 
 ## D-049 — --raw-sk output files overwrite each other for dotted names
 - **Found:** 2026-10-26, code review of the v0.1 refactor
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/npointstats/cli.py (`run`, `Path(name).stem`)
 - **Symptom:** `.stem` cuts at the last dot, so `cco__phi0.45` and `cco__phi0.50` both map to `cco__phi0.npz`; exit status 0
 - **Repro:** two members with those names → one file in `sk_raw/`
 - **Impact:** silent loss of raw S(k) output
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_review.py::test_regression_D049_raw_sk_names_kept; seen failing before the fix: one file cco__phi0.npz for two members
+- **Fix:** raw files are named <member file name>.npz; duplicate names raise
 
 ## D-050 — single-member ensembles: wrong `counts` meaning; g2 = 0 bins dropped from CSV
 - **Found:** 2026-10-26, code review of the v0.1 refactor
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/npointstats/ensemble.py (`average_binned` 1-member shortcut), src/npointstats/results.py (`save_result(nonempty_only=True)`)
 - **Symptom:** with one member, `counts` holds pair counts instead of member counts and `n_members` is missing; `save_result` then removes zero-count rows, deleting the g2 = 0 (hard-core) region
 - **Repro:** `npointstats -d one_lattice_file -s g2 --dr 0.25` → 12 of 20 bins written, with gaps
 - **Impact:** misleading single-configuration g2 files
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_review.py::test_regression_D050_single_member_semantics; seen failing before the fix: counts held pair counts, n_members missing, zero-g2 rows dropped
+- **Fix:** one-member averages report member counts + n_members; nonempty_only drops only NaN rows
 
 ## D-051 — documented pandas recipe loses the first data row
 - **Found:** 2026-10-26, code review of the v0.1 refactor
-- **Status:** open
+- **Status:** fixed
 - **Where:** README.md (Command line), src/npointstats/results.py (module docstring)
 - **Symptom:** the column names are on a `#` comment line, so `pandas.read_csv(path, comment="#")` takes the first data row as the header
 - **Repro:** 12-row file → DataFrame of shape (11, 7) with columns `['0.75', '1', ...]`
 - **Impact:** silently wrong data for pandas users
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_review.py::test_regression_D051_csv_header_row; seen failing before the fix: first non-comment line was a data row
+- **Fix:** CSV writes # metadata, then an uncommented header row; load_table parses it
 
 ## D-052 — submodules shadowed by same-named functions
 - **Found:** 2026-10-26, code review of the v0.1 refactor
@@ -532,40 +532,40 @@
 
 ## D-053 — uniform_edges silently extends the range when the width exceeds it
 - **Found:** 2026-10-26, code review of the v0.1 refactor
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/npointstats/binning.py (`uniform_edges`)
 - **Symptom:** at least one bin is always produced, so `dr > r_max` extends r_max to dr (or raises a misleading inscribed-radius error)
 - **Repro:** `pair_correlation(p, dr=0.4, r_max=0.3)` → edges `[0, 0.4]`, metadata r_max = 0.4
 - **Impact:** results beyond the requested (possibly invalid) range
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_review.py::test_regression_D053_width_larger_than_range; seen failing before the fix: dr=0.4, r_max=0.3 returned edges [0, 0.4]
+- **Fix:** uniform_edges raises when the width exceeds the range
 
 ## D-054 — CLI accepts --fractional for formats that ignore it
 - **Found:** 2026-10-26, code review of the v0.1 refactor
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/npointstats/cli.py (`_reader_kwargs`)
 - **Symptom:** `-p cco --fractional` exits 0 and reads Cartesian coordinates
 - **Repro:** `npointstats -d dir -p cco --fractional -s g2` → exit 0
 - **Impact:** the user believes coordinates were converted
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_review.py::test_regression_D054_fractional_only_for_dnv_lstj; seen failing before the fix: -p cco --fractional exited 0
+- **Fix:** CLI rejects --fractional (and --columns) for formats that do not use them
 
 ## D-055 — morsefire reader raises a bare KeyError for incomplete scalars.dat
 - **Found:** 2026-10-26, code review of the v0.1 refactor
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/npointstats/io.py (`read_morsefire`)
 - **Symptom:** missing `nDim`/`numParticles` → `KeyError: 'nDim'` traceback from the CLI
 - **Repro:** `scalars.dat` without `nDim` → KeyError
 - **Impact:** unhelpful error
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_review.py::test_regression_D055_morsefire_missing_keys; seen failing before the fix: KeyError: 'nDim'
+- **Fix:** read_morsefire checks required keys and raises ValueError naming them
 
 ## D-056 — minor API/CLI inconsistencies
 - **Found:** 2026-10-26, code review of the v0.1 refactor
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/npointstats/io.py (`read_simple(columns=...)` can only equal d), src/npointstats/cli.py (`--r-max` help says L/2, `--dk` help says 2π/L; `--raw-sk` uses each member's default k_max, not the k_max of `sf.csv`), src/npointstats/ensemble.py (`average_binned` compares edges with `allclose`)
 - **Symptom:** parameters or help text that do not match behaviour
 - **Repro:** `read_simple(path, np.eye(2), columns=1)` → ValueError although documented as "use only the first columns"
 - **Impact:** confusion; raw and binned S(k) cover different k ranges
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_review.py::test_regression_D056_simple_reader_column_selection (+ D-049 test checks raw k_max); seen failing before the fix: read_simple(columns=(1, 2)) TypeError/ValueError; raw k_max differed from sf.csv
+- **Fix:** read_simple(columns=indices) + CLI --columns; raw S(k) uses the ensemble k_max; help texts corrected; average_binned compares edges exactly

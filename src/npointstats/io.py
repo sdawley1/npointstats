@@ -33,7 +33,7 @@ Sam Dawley
 
 # ----- standard library -----
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Sequence, Union
 
 # ----- third party -----
 import numpy as np
@@ -205,6 +205,9 @@ def read_morsefire(directory: PathLike) -> PointPattern:
     for line in _nonblank_lines(files["scalars.dat"]):
         key, _, value = line.partition("\t")
         scalars[key.strip()] = float(value)
+    missing_keys = [key for key in ("nDim", "numParticles") if key not in scalars]
+    if missing_keys:
+        raise ValueError(f"{root}/scalars.dat: missing {', '.join(missing_keys)}")
     d = int(scalars["nDim"])
     n_points = int(scalars["numParticles"])
     lengths = np.loadtxt(files["boxSize.dat"], dtype=np.float64).ravel()
@@ -222,7 +225,7 @@ def read_morsefire(directory: PathLike) -> PointPattern:
 def read_simple(
     path: PathLike,
     box: Union[Box, ArrayLike],
-    columns: Optional[int] = None,
+    columns: Optional[Sequence[int]] = None,
     delimiter: Optional[str] = None,
 ) -> PointPattern:
     """
@@ -234,8 +237,9 @@ def read_simple(
         Text file, one point per line; ``#`` starts a comment.
     box : Box or array_like, shape (d, d)
         Periodic cell.
-    columns : int, optional
-        Use only the first `columns` columns (default: the box dimension).
+    columns : sequence of int, optional
+        Indices of the d coordinate columns (default: the first d columns),
+        e.g. ``(1, 2)`` for files whose first column is a particle id.
     delimiter : str, optional
         Column separator (default: any whitespace; use ``","`` for CSV).
 
@@ -244,19 +248,19 @@ def read_simple(
     PointPattern
     """
     cell = box if isinstance(box, Box) else Box(box)
-    ncol = cell.dimension if columns is None else columns
-    if ncol != cell.dimension:
+    cols = list(range(cell.dimension)) if columns is None else [int(c) for c in columns]
+    if len(cols) != cell.dimension:
         raise ValueError(
-            f"columns={ncol} does not match box dimension {cell.dimension}"
+            f"columns={cols} must name exactly {cell.dimension} coordinate columns"
         )
     data = np.loadtxt(
         path, dtype=np.float64, delimiter=delimiter, comments="#", ndmin=2
     )
-    if data.shape[1] < ncol:
+    if data.shape[1] <= max(cols):
         raise ValueError(
-            f"{path}: expected at least {ncol} columns, got {data.shape[1]}"
+            f"{path}: expected at least {max(cols) + 1} columns, got {data.shape[1]}"
         )
-    return PointPattern(data[:, :ncol], cell)
+    return PointPattern(data[:, cols], cell)
 
 
 # ============================================================

@@ -100,6 +100,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fractional", action="store_true", help="dnv/lstj coordinates are fractional"
     )
+    parser.add_argument(
+        "--columns",
+        type=int,
+        nargs="+",
+        metavar="I",
+        help="coordinate column indices for -p simple (default: the first d)",
+    )
 
     # ----- statistics -----
     parser.add_argument(
@@ -113,7 +120,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--k-max", type=float, help="S(k) cutoff (default 3 x 2 pi rho^(1/d))"
     )
-    parser.add_argument("--dk", type=float, help="S(k) shell width (default: 2 pi / L)")
+    parser.add_argument(
+        "--dk",
+        type=float,
+        help="S(k) shell width (default: shortest reciprocal vector)",
+    )
     parser.add_argument("--method", default="nufft", choices=["nufft", "direct"])
     parser.add_argument(
         "--nthreads", type=int, default=1, help="FINUFFT threads per member"
@@ -127,7 +138,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--dr", type=float, help="g2 bin width (default 0.05 rho^(-1/d))"
     )
     parser.add_argument(
-        "--r-max", type=float, help="g2 range (default min(10 rho^(-1/d), L/2))"
+        "--r-max",
+        type=float,
+        help="g2 range (default min(10 rho^(-1/d), inscribed radius))",
     )
     parser.add_argument("--radii", type=float, nargs="+", help="number-variance radii")
     parser.add_argument("--windows", type=int, default=5000, help="windows per member")
@@ -160,10 +173,14 @@ def _log(message: str, quiet: bool) -> None:
 
 def _reader_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
     """Format-specific keyword arguments for the readers."""
+    if args.fractional and args.format not in ("dnv", "lstj"):
+        raise ValueError("--fractional is only used with -p dnv or -p lstj")
+    if args.columns and args.format != "simple":
+        raise ValueError("--columns is only used with -p simple")
     if args.format == "simple":
         if not args.box:
             raise ValueError("-p simple needs --box L1 [L2 ...]")
-        return {"box": Box.from_lengths(args.box)}
+        return {"box": Box.from_lengths(args.box), "columns": args.columns}
     if args.box:
         raise ValueError("--box is only used with -p simple")
     if args.format in ("dnv", "lstj"):
@@ -206,15 +223,24 @@ def run(args: argparse.Namespace) -> List[Path]:
             args.quiet,
         )
     if args.raw_sk:
-        raw = args.out / "sk_raw"
-        raw.mkdir(exist_ok=True)
-        for name, pattern in zip(ensemble.sources, ensemble, strict=True):
-            sk = structure_factor(
-                pattern, k_max=args.k_max, method=args.method, nthreads=args.nthreads
-            )
-            written.append(
-                save_structure_factor_raw(sk, raw / f"{Path(name).stem}.npz")
-            )
+        written += _write_raw_sk(ensemble, args)
+    return written
+
+
+def _write_raw_sk(ensemble: Ensemble, args: argparse.Namespace) -> List[Path]:
+    """Unbinned S(k) per member, on the same k_max as the ensemble sf.csv."""
+    raw = args.out / "sk_raw"
+    raw.mkdir(exist_ok=True)
+    names = [f"{name}.npz" for name in ensemble.sources]
+    if len(set(names)) != len(names):
+        raise ValueError("member names are not unique; cannot name raw S(k) files")
+    k_max = ensemble.default_k_max() if args.k_max is None else args.k_max
+    written = []
+    for name, pattern in zip(names, ensemble, strict=True):
+        sk = structure_factor(
+            pattern, k_max=k_max, method=args.method, nthreads=args.nthreads
+        )
+        written.append(save_structure_factor_raw(sk, raw / name))
     return written
 
 

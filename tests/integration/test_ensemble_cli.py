@@ -121,8 +121,11 @@ def test_result_round_trip(tmp_path: Path) -> None:
     raw = np.load(save_structure_factor_raw(sk, tmp_path / "raw.npz"))
     np.testing.assert_array_equal(raw["S"], sk.values)
     bad = tmp_path / "bad.csv"
-    bad.write_text("1,2\n")
-    with pytest.raises(ValueError, match="columns"):
+    bad.write_text("# only comments\n")
+    with pytest.raises(ValueError, match="header"):
+        load_table(bad)
+    bad.write_text("a,b\n1,2,3\n")
+    with pytest.raises(ValueError, match="names"):
         load_table(bad)
 
 
@@ -158,8 +161,8 @@ def test_cli_end_to_end(tmp_path: Path) -> None:
         assert data.shape[0] > 0
         assert meta["sources"] == ["RSA__0000.txt", "RSA__0001.txt"]
     assert sorted(p.name for p in (out / "sk_raw").iterdir()) == [
-        "RSA__0000.npz",
-        "RSA__0001.npz",
+        "RSA__0000.txt.npz",
+        "RSA__0001.txt.npz",
     ]
 
 

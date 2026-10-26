@@ -165,7 +165,7 @@ def test_read_simple_csv_and_comments(tmp_path: Path) -> None:
     pattern = io.read_simple(path, Box.cubic(1.0, 2), delimiter=",")
     np.testing.assert_allclose(pattern.positions, [[0.1, 0.2], [0.3, 0.4]])
     with pytest.raises(ValueError, match="columns"):
-        io.read_simple(path, np.eye(2), columns=3, delimiter=",")
+        io.read_simple(path, np.eye(2), columns=(0, 1, 2), delimiter=",")
     with pytest.raises(ValueError, match="at least 4 columns"):
         io.read_simple(path, np.eye(4), delimiter=",")
 

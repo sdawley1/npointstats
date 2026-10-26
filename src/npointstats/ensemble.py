@@ -111,13 +111,24 @@ def average_binned(results: Sequence[BinnedResult]) -> BinnedResult:
     """Average BinnedResults that share the same edges."""
     if not results:
         raise ValueError("nothing to average")
-    if len(results) == 1:
-        return results[0]
     edges = results[0].edges
-    if any(
-        r.edges.shape != edges.shape or not np.allclose(r.edges, edges) for r in results
-    ):
+    if any(not np.array_equal(r.edges, edges) for r in results):
         raise ValueError("all members must share the same bin edges")
+    if len(results) == 1:
+        # one member: keep its within-member error, report member counts
+        only = results[0]
+        meta = dict(only.metadata)
+        meta["n_members"] = 1
+        meta["n_points"] = [only.metadata.get("n_points")]
+        counts = np.isfinite(only.mean).astype(np.int64)
+        return BinnedResult(
+            edges=edges,
+            x_mean=only.x_mean,
+            mean=only.mean,
+            sem=only.sem,
+            counts=counts,
+            metadata=meta,
+        )
     mean, sem, n = _member_mean(np.stack([r.mean for r in results]))
     x_mean, _, _ = _member_mean(np.stack([r.x_mean for r in results]))
     meta = dict(results[0].metadata)
@@ -133,7 +144,18 @@ def average_number_variance(results: Sequence[NumberVariance]) -> NumberVariance
     if not results:
         raise ValueError("nothing to average")
     if len(results) == 1:
-        return results[0]
+        only = results[0]
+        meta = dict(only.metadata)
+        meta["n_members"] = 1
+        meta["n_points"] = [only.metadata.get("n_points")]
+        meta["seed"] = [only.metadata.get("seed")]
+        return NumberVariance(
+            radii=only.radii,
+            variance=only.variance,
+            sem=only.sem,
+            mean_count=only.mean_count,
+            metadata=meta,
+        )
     var, sem, _ = _member_mean(np.stack([r.variance for r in results]))
     mean_count, _, _ = _member_mean(np.stack([r.mean_count for r in results]))
     meta = dict(results[0].metadata)
@@ -266,6 +288,10 @@ class Ensemble:
         """Mean number density over members."""
         return float(np.mean([p.density for p in self._patterns]))
 
+    def default_k_max(self) -> float:
+        """Smallest member default S(k) cutoff (3 x 2 pi rho^(1/d))."""
+        return min(default_k_max(p) for p in self)
+
     # ----- statistics -----
 
     def structure_factor(
@@ -284,7 +310,7 @@ class Ensemble:
         no member has wave vectors below the first bin edge dk/2 (bins a member
         does not populate are averaged over the members that do; see `counts`).
         """
-        cut = min(default_k_max(p) for p in self) if k_max is None else float(k_max)
+        cut = self.default_k_max() if k_max is None else float(k_max)
         width = min(default_dk(p.box) for p in self) if dk is None else float(dk)
         kw = {"k_max": cut, "dk": width, "method": method, "nthreads": nthreads}
         results = _run(_sf_worker, [(p, kw) for p in self], jobs)

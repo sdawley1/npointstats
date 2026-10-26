@@ -3,14 +3,13 @@
 """
 Saving and loading results as self-describing CSV and NPZ files.
 
-CSV layout (readable with ``numpy.loadtxt(path, delimiter=",")`` or
-``pandas.read_csv(path, comment="#")``)::
+CSV layout (readable with `load_table` or ``pandas.read_csv(path, comment="#")``)::
 
     # npointstats 0.1.0
-    # statistic: pair_correlation
+    # statistic: "pair_correlation"
     # dr: 0.05
     # ...
-    # columns: r_lo,r_hi,r,r_mean,g2,sem,count
+    r_lo,r_hi,r,r_mean,g2,sem,count
     0,0.05,0.025,...
 
 Sam Dawley
@@ -59,21 +58,25 @@ def save_table(
     columns: Sequence[str],
     metadata: Dict[str, object],
 ) -> Path:
-    """Write a 2D table with a commented metadata header (full precision)."""
+    """
+    Write a 2D table: ``#`` metadata lines, one header row, then CSV data.
+
+    Values are written with 17 significant digits (lossless).
+    """
     arr = np.asarray(table, dtype=np.float64)
     if arr.ndim != 2 or arr.shape[1] != len(columns):
         raise ValueError(
             f"table shape {arr.shape} does not match {len(columns)} columns"
         )
+    if any("," in c or not c for c in columns):
+        raise ValueError(f"column names must be non-empty and comma-free: {columns}")
     out = Path(path)
     lines = [f"# npointstats {__version__}"]
     for key, value in metadata.items():
         lines.append(f"# {key}: {json.dumps(value, default=str)}")
-    lines.append("# columns: " + ",".join(columns))
-    body = "\n".join(",".join(f"{v:.17g}" for v in row) for row in arr)
-    out.write_text(
-        "\n".join(lines) + "\n" + body + ("\n" if body else ""), encoding="utf-8"
-    )
+    lines.append(",".join(columns))
+    lines += [",".join(f"{v:.17g}" for v in row) for row in arr]
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out
 
 
@@ -83,21 +86,25 @@ def load_table(
     """Read a table written by `save_table`: (data, columns, metadata)."""
     meta: Dict[str, object] = {}
     columns: List[str] = []
+    header_row = -1
     with open(path, encoding="utf-8") as handle:
-        for line in handle:
-            if not line.startswith("#"):
-                break
-            text = line[1:].strip()
-            if text.startswith("columns:"):
-                columns = text.split(":", 1)[1].strip().split(",")
-            elif ":" in text:
-                key, value = text.split(":", 1)
-                meta[key.strip()] = json.loads(value)
-    if not columns:
-        raise ValueError(f"{path}: missing '# columns:' header line")
-    data = np.loadtxt(path, delimiter=",", comments="#", ndmin=2)
+        for i, line in enumerate(handle):
+            if line.startswith("#"):
+                text = line[1:].strip()
+                if ":" in text:
+                    key, value = text.split(":", 1)
+                    meta[key.strip()] = json.loads(value)
+                continue
+            columns = line.strip().split(",")
+            header_row = i
+            break
+    if header_row < 0 or not columns or not columns[0]:
+        raise ValueError(f"{path}: missing column header row")
+    data = np.loadtxt(path, delimiter=",", skiprows=header_row + 1, ndmin=2)
     if data.size == 0:
         data = np.empty((0, len(columns)))
+    if data.shape[1] != len(columns):
+        raise ValueError(f"{path}: {data.shape[1]} data columns, {len(columns)} names")
     return np.asarray(data), columns, meta
 
 
@@ -111,7 +118,12 @@ def save_result(
     path: PathLike,
     nonempty_only: bool = True,
 ) -> Path:
-    """Save a binned statistic or a number variance as CSV."""
+    """
+    Save a binned statistic or a number variance as CSV.
+
+    With `nonempty_only`, bins without data (NaN, e.g. S(k) shells holding no
+    wave vector) are omitted; genuine zeros such as g2 in a hard core are kept.
+    """
     if isinstance(result, NumberVariance):
         return save_table(
             path, result.to_array(), COLUMNS["number_variance"], result.metadata
