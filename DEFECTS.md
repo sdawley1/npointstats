@@ -242,43 +242,43 @@
 
 ## D-025 — read_simple_data / read_chiral_active hard-code the box
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** master.py:51 (`read_simple_data` → always 2×2 identity), master.py:69 (`read_chiral_active` → 161.80216 square)
 - **Symptom:** box ignores the data's dimension and size
 - **Repro:** a 3D "simple" file → (3,) positions paired with a (2,2) box → crash or wrong S(k)
 - **Impact:** wrong statistics for any file not matching the hard-coded box
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_io.py::test_regression_D025_simple_reader_uses_given_box; seen failing on 363ae8f: legacy read_simple_data returned a 2x2 identity box for 3D data
+- **Fix:** io.read_simple requires the box; chiral-active files are read with read_simple(columns=2, box=...)
 
 ## D-026 — read_cco breaks on trailing blank lines
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/readwrite.py:94-102 (`read_cco`, and its copies in the cpu/gpu modules)
 - **Symptom:** blank lines are counted as particles and produce empty coordinate rows → ragged `np.array` (ValueError in NumPy ≥ 1.24)
 - **Repro:** a valid CCO file with a trailing `"\n"` line → ValueError
 - **Impact:** files edited by hand or concatenated fail to read; `n_particles` is wrong
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_io.py::test_regression_D026_cco_trailing_blank_lines; seen failing on 363ae8f: legacy read_cco raised ValueError (inhomogeneous array)
+- **Fix:** io.read_cco ignores blank lines and reports the offending line number on parse errors
 
 ## D-027 — write_cco truncates coordinates to 6 decimals
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/readwrite.py:35 (`stringify`, also utils/geom.py:233)
 - **Symptom:** `f"{x:0.6f}"` loses all digits below 1e-6
 - **Repro:** `write_cco(np.eye(2), np.array([[0.1234567891, 0.5]]), f)` then `read_cco(f)` → 0.123457
 - **Impact:** round trip is lossy; jammed/contact configurations written with it overlap or separate by ~1e-6
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_io.py::test_regression_D027_cco_full_precision (+ property test_regression_D027_round_trip_property); seen failing on 363ae8f: legacy round trip gave 0.123457
+- **Fix:** io.write_cco writes %.17g (bit-exact round trip)
 
 ## D-028 — read_morsefire is 2D-only and fails on missing files
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/readwrite.py:253-272 (`read_morsefire`)
 - **Symptom:** only `boxsize[0]`, `boxsize[1]` are placed in the box (3D boxes get a zero row → singular); if any of the four files is absent, `UnboundLocalError`; `glob("*")` substring matching also picks up e.g. `old_positions.dat`
-- **Repro:** 3D morse output → zero-volume box; directory without `radii.dat` → UnboundLocalError
+- **Repro:** 3D morse output → zero-volume box; directory without `radii.dat` → UnboundLocalError; under NumPy 2 any `boxSize.dat` (one value per line or all on one line) → `ValueError: setting an array element with a sequence`
 - **Impact:** unusable for 3D, cryptic errors otherwise
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_io.py::test_regression_D028_morsefire_3d, ::test_regression_D028_morsefire_missing_file; seen failing on 363ae8f: legacy read_morsefire raised 'ValueError: setting an array element with a sequence' (NumPy 2) for boxSize.dat with one value per line
+- **Fix:** io.read_morsefire reads d side lengths, matches exact file names, raises FileNotFoundError naming missing files
 
 ## D-029 — library code calls sys.exit
 - **Found:** 2026-10-26, during the repository audit
