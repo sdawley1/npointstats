@@ -3,7 +3,7 @@
 """
 Hypothesis property tests for `npointstats.theory` (Lado, PY, Baus–Colot).
 
-Defect repros (D-034 … D-040) are pinned with `@example`.
+Defect repros (D-034 … D-040, D-042 … D-046) are pinned with `@example`.
 
 Sam Dawley
 10/2026
@@ -266,6 +266,8 @@ def test_bc_reproduces_its_compressibility(state: Tuple[int, float]) -> None:
 
 
 @given(states(), wavenumbers)
+@example((2, 0.4), 0.5)  # D-042 repro: 2D c̃ raised AttributeError (np.trapz)
+@example((2, 0.4), 5.0)  # D-042
 def test_bc_fourier_matches_quadrature(state: Tuple[int, float], q: float) -> None:
     d, eta = state
     expected = _quad_transform(lambda r: float(bc_dcf(r, eta, d)), q, d)
@@ -286,6 +288,7 @@ def test_bc_dcf_vanishes_outside_core(
 
 
 @given(states(), diameters, wavenumbers)
+@example((3, 0.3), 2.0, 1.0)  # D-046 repro: D was ignored
 def test_bc_diameter_scaling(
     state: Tuple[int, float], diameter: float, q: float
 ) -> None:
@@ -301,6 +304,86 @@ def test_bc_diameter_scaling(
 def test_bc_structure_factor_tends_to_one(state: Tuple[int, float], k: float) -> None:
     d, eta = state
     assert abs(float(bc_structure_factor(k, eta, d)) - 1.0) < 0.05
+
+
+@given(st.floats(0.01, 0.95, **finite), st.floats(1e-3, 0.04, **finite))
+@example(0.8, 0.01)  # D-043 repro: fsolve returned its guess a = 1.5, ier = 5
+@example(0.9, 0.04)  # D-043
+def test_bc_2d_a_is_root_up_to_high_density(eta: float, step: float) -> None:
+    a = bc_solve_a(eta, 2)
+    assert 1.0 < a < 2.0
+    k_inv = bc_inverse_compressibility(eta, 2)
+    np.testing.assert_allclose(bc._bc_residual_2d(a, eta, k_inv), 0.0, atol=1e-12)
+    assert bc_solve_a(eta + step, 2) < a  # a decreases monotonically with η
+
+
+@given(
+    states(),
+    hnp.arrays(np.float64, hnp.array_shapes(min_dims=0, max_dims=2, max_side=4),
+               elements=st.floats(0.0, 3.0, **finite)),
+    hnp.arrays(np.float64, hnp.array_shapes(min_dims=0, max_dims=2, max_side=4),
+               elements=wavenumbers),
+)  # fmt: skip
+@example((3, 0.3), np.array(0.5), np.array([1.0, 2.0, 3.0]))  # D-044 repro
+@example((3, 0.3), np.array([0.2, 0.4]), np.array(2 * np.pi))  # D-044
+def test_bc_evaluates_at_caller_points(
+    state: Tuple[int, float], r: np.ndarray, k: np.ndarray
+) -> None:
+    d, eta = state
+    c = bc_dcf(r, eta, d)
+    ck = bc_dcf_fourier(k, eta, d)
+    assert c.shape == r.shape
+    assert ck.shape == k.shape
+    for x, value in zip(r.ravel(), c.ravel(), strict=True):
+        np.testing.assert_allclose(value, float(bc_dcf(float(x), eta, d)), rtol=1e-14)
+    for x, value in zip(k.ravel(), ck.ravel(), strict=True):
+        single = float(bc_dcf_fourier(float(x), eta, d))
+        np.testing.assert_allclose(value, single, rtol=1e-12, atol=1e-13)
+
+
+def _check_small_k(c: Callable[[float], float], ck: float, k: float, d: int) -> None:
+    """Assert c̃(k) = c̃(0) - k²/(2d) ∫ r² c d^d r + O(k⁴), oracle by quadrature."""
+    c0 = _quad_transform(c, 0.0, d)
+    radial = {1: 2.0, 2: 2.0 * np.pi, 3: 4.0 * np.pi}[d]
+    moment = radial * quad(lambda r: r ** (d + 1) * c(r), 0.0, 1.0, epsabs=1e-13)[0]
+    expected = c0 - k * k * moment / (2 * d)
+    np.testing.assert_allclose(ck, expected, rtol=1e-9, atol=k**4 * abs(c0))
+
+
+@given(states(), st.floats(0.0, 1e-2, **finite))
+@example((3, 0.4), 0.0)  # D-045 repro: 0/0 at k = 0
+@example((3, 0.4), 1e-3)  # D-045: cancellation gave -2.2e5 instead of -31.416
+def test_bc_small_k_taylor(state: Tuple[int, float], k: float) -> None:
+    d, eta = state
+    ck = float(bc_dcf_fourier(k, eta, d))
+    _check_small_k(lambda r: float(bc_dcf(r, eta, d)), ck, k, d)
+
+
+@given(states(odd_dims), st.floats(0.0, 1e-2, **finite))
+@example((3, 0.4), 1e-3)  # D-045 repro
+@example((3, 0.4), 1e-5)  # D-045 repro: gave -104.7 instead of -31.416
+def test_py_small_k_taylor(state: Tuple[int, float], k: float) -> None:
+    d, eta = state
+    ck = float(py_dcf_fourier(k, eta, d))
+    _check_small_k(lambda r: float(py_dcf(r, eta, d)), ck, k, d)
+
+
+@given(states(), diameters, st.floats(0.0, 3.0, **finite))
+@example((3, 0.3), 2.0, 0.75)  # D-046 repro: c(1.5; D = 2) was 0
+@example((1, 0.3), 2.0, 0.75)  # D-046
+def test_dcf_real_space_scales_with_diameter(
+    state: Tuple[int, float], diameter: float, x: float
+) -> None:
+    d, eta = state
+    np.testing.assert_allclose(
+        float(bc_dcf(x * diameter, eta, d, diameter)), float(bc_dcf(x, eta, d)),
+        rtol=1e-12, atol=1e-300,
+    )  # fmt: skip
+    if d != 2:
+        np.testing.assert_allclose(
+            float(py_dcf(x * diameter, eta, d, diameter)), float(py_dcf(x, eta, d)),
+            rtol=1e-12, atol=1e-300,
+        )  # fmt: skip
 
 
 # ============================================================

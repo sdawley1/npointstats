@@ -148,7 +148,7 @@
 - **Symptom:** each Cartesian component is wrapped by `|a_i|`, which is the period along axis i only when the box is axis-aligned and orthogonal
 - **Repro:** box `[[1, 0], [0.5, 0.866]]`, points (0, 0) and (0.5, 0.866) (a lattice translate, true distance 0) → reported distance ≈ 0.518
 - **Impact:** wrong g2 for triangular, sheared, or triclinic cells
-- **Regression test:** tests/regression/test_regression_geometry.py::test_regression_D015_triclinic_minimum_image (+ property test_regression_D015_lattice_translates_vanish); seen failing on 363ae8f: legacy dist_matrix_2d gives 0.5176 for a lattice translate
+- **Regression test:** tests/regression/test_regression_geometry.py::test_regression_D015_triclinic_minimum_image (+ property test_regression_D015_lattice_translates_vanish), tests/regression/test_regression_pair_correlation.py::test_regression_D015_g2_triclinic_translate; seen failing on 363ae8f: legacy dist_matrix_2d gives 0.5176 for a lattice translate
 - **Fix:** npointstats.box.Box.minimum_image rounds fractional coordinates; exact below Box.inscribed_radius for any cell shape
 
 ## D-016 — nearest_image mutates its argument in place
@@ -163,43 +163,43 @@
 
 ## D-017 — sample_xd_g2 silently divides delta_r by the box length
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_npt_correlation.py:241
 - **Symptom:** `delta_r /= vol ** (1 / dimension)` makes the bin width relative to L, contrary to the docstring ("spacing between successive radii")
 - **Repro:** box `10*np.eye(2)`, `delta_r=0.1` → bins of width 0.01
 - **Impact:** g2 resolution is wrong for any box with L ≠ 1
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_pair_correlation.py::test_regression_D017_dr_is_absolute (property, @example(10.0, 0.1)); seen failing on 363ae8f: dr=0.1 in a 10x10 box gave bins of width 0.01
+- **Fix:** pair_correlation(dr=...) uses dr in position units
 
 ## D-018 — sample_xd_g2 ignores max_l and uses np.max(lv)/2 as range
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_npt_correlation.py:243-246
 - **Symptom:** `max_l` is computed but unused; the bins always run to half the largest *matrix entry* of `lv`, which can exceed the minimum-image limit (half the smallest box width)
 - **Repro:** `sample_xd_g2(x, np.diag([1., 4.]), max_l=0.1)` → bins to r = 2.0, beyond the valid r < 0.5
 - **Impact:** g2 beyond half the shortest box width is corrupted by double counting / missed images
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_pair_correlation.py::test_regression_D018_r_max_respected; seen failing on 363ae8f: max_l=0.1 in a 1x4 box ran to r=1.995
+- **Fix:** r_max honoured; default min(10 rho^(-1/d), inscribed radius); larger r_max raises ValueError
 
 ## D-019 — g2 shell volume centred on the upper bin edge
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_npt_correlation.py:264-266 (also src/gpu_analysis/g_npt_correlation.py:54)
 - **Symptom:** histogram bin [r_i, r_{i+1}) is normalised by a shell of width dr centred at r_{i+1}, and reported at r_{i+1}; correct is v(r_{i+1}) - v(r_i) at the bin centre
 - **Repro:** 2D Poisson, dr = 0.05, first bin [0.05, 0.10) → g2 ≈ 0.75 instead of 1 (old shell π(0.125²−0.075²) = 0.0314 vs exact π(0.10²−0.05²) = 0.0236)
 - **Impact:** O(dr/r) bias at small r; peaks shifted by dr/2
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_pair_correlation.py::test_regression_D019_exact_shell_normalisation (+ property test_regression_D019_single_pair_property); seen failing on 363ae8f: 2D Poisson first bins g2 = 0.751, 0.833, 0.871 reported at bin upper edges
+- **Fix:** shell volume v(r_{i+1}) - v(r_i), values reported at bin centres, binomial normalisation N(N-1)/V
 
 ## D-020 — sample_xd_g2 builds a dense N×N distance matrix
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_npt_correlation.py:254-262
 - **Symptom:** O(N²) memory and time
 - **Repro:** N = 1e5 (CONFIGURATIONS/SATURATED_RSA/RSA-2D-N_100000*) → 80 GB
 - **Impact:** g2 is unusable on the group's large configurations
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_pair_correlation.py::test_regression_D020_memory_bounded; seen failing on 363ae8f: N=15000 peaked at 1.93 GB RSS (dense N^2), 80 GB extrapolated at N=1e5
+- **Fix:** chunked KD-tree sparse distances; memory ~ 2^22 pairs per chunk, work ~ N rho v(r_max)
 
 ## D-021 — importing c_npt_correlation forces JAX onto the CPU process-wide
 - **Found:** 2026-10-26, during the repository audit
