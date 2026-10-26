@@ -2,13 +2,14 @@
 
 ## D-001 — sample_xd_sf rescales the caller's coordinates in place
 - **Found:** 2026-09-25, while porting the finufft S(k) to neurons/analyze.py
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_structure_factor.py:214-243 (`sample_xd_sf`)
 - **Symptom:** `np.asarray` does not copy a float64 array, so the in-place `/=` maps the caller's positions to [-pi, pi)
-- **Repro:** `x = np.random.rand(10, 3); sample_xd_sf(x, np.eye(3)); x.min()` → about `-pi`, expected unchanged in [0, 1)
+- **Correction (2026-10-26):** re-run on 363ae8f shows the in-place step is only `point_pattern[:, k] /= lv[k, k]`; the later `np.add` makes a new array. The caller's array is therefore divided by the box lengths (unchanged for a unit box), not mapped to [-pi, pi).
+- **Repro:** `x = np.random.rand(10, 3); sample_xd_sf(x, np.eye(3)); x.min()` → about `-pi`, expected unchanged in [0, 1) (corrected repro: `x = 2*np.random.rand(10, 3); sample_xd_sf(x, 2*np.eye(3))` → `x.max()` ≈ 0.98, was 1.96)
 - **Impact:** any later use of `coords` after the call (e.g. a second S(k) or g2 on the same array) sees rescaled positions
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_structure_factor.py::test_regression_D001_positions_not_mutated (+ property test_regression_D001_no_mutation_property); seen failing on 363ae8f: box 2*eye(3) left x.max() = 0.98 (was 1.96)
+- **Fix:** structure_factor works on PointPattern.fractional() copies; PointPattern positions are read-only
 
 ## D-002 — angular_average drops the last populated bin
 - **Found:** 2026-09-25, while porting the finufft S(k) to neurons/analyze.py
@@ -32,13 +33,13 @@
 
 ## D-004 — sample_xd_sf ignores its kn argument
 - **Found:** 2026-09-25, while porting the finufft S(k) to neurons/analyze.py
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_structure_factor.py:219-225 (`sample_xd_sf`)
 - **Symptom:** the `match dimension` block overwrites `kn` unconditionally, so a caller-supplied grid has no effect
 - **Repro:** `sample_xd_sf(x, np.eye(3), kn=(5, 5, 5)).shape[0]` → `15624` (25^3 - 1), expected `124`
 - **Impact:** every 3D call uses a 25^3 grid regardless of the request
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_structure_factor.py::test_regression_D004_k_max_respected (+ property test_regression_D004_count_matches_enumeration); seen failing on 363ae8f: kn=(5,5,5) returned 15624 vectors
+- **Fix:** structure_factor(k_max=...) samples exactly the reciprocal vectors with 0 < |k| <= k_max
 
 ## D-005 — Python module has a bash shebang
 - **Found:** 2026-09-25, while porting the finufft S(k) to neurons/analyze.py
@@ -102,43 +103,43 @@
 
 ## D-011 — collective S(k) samples only non-negative wave-vector indices
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_structure_factor.py:170 (`generate_wavevectors`, same in src/gpu_analysis/g_structure_factor.py:185)
 - **Symptom:** `itertools.product(*map(range, kn))` yields only n_i ≥ 0, i.e. one quadrant/octant of k-space
 - **Repro:** 2D, `kn=(3, 3)` → no wave vector with a negative component, e.g. (-2π, 2π) is absent
 - **Impact:** S(k) of anisotropic patterns (lattices, sheared or triclinic boxes) is biased; shell populations are a quarter (2D) / eighth (3D) of the full shell
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_structure_factor.py::test_regression_D011_negative_components_present; seen failing on 363ae8f: generate_wavevectors returned no vector with a negative component
+- **Fix:** wavevector_indices enumerates the full inversion-symmetric index set
 
 ## D-012 — radially averaged S(k) includes incomplete shells beyond the inscribed k-sphere
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_structure_factor.py:228-238 and :392-397; utils/point_pattern.py:195
 - **Symptom:** wave vectors fill a box in index space, so for |k| larger than the radius of the sphere inscribed in that box only the "corners" are sampled
 - **Repro:** 2D, `kn=(250, 250)`, unit box → shells with |k| > 2π·125 hold far fewer vectors than 2π|k|/Δk
 - **Impact:** large-|k| tail of every binned S(k) is averaged over a direction-biased subset
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_structure_factor.py::test_regression_D012_complete_shells (property); seen failing on 363ae8f: shell |k|=300*2pi held 452 vectors, complete shell has 1848
+- **Fix:** wave vectors are cut by |k| <= k_max; StructureFactor.radial_average keeps only bins entirely below k_max
 
 ## D-013 — collective S(k) needs O(M·N) memory
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_structure_factor.py:343 (`_compute_sf_all_k`)
 - **Symptom:** `jax.vmap` over all M wave vectors materialises the (M, N) phase matrix
 - **Repro:** 2D default `kn=(250, 250)` with N = 1e5 → ~6.2e4 × 1e5 × 8 B ≈ 50 GB
 - **Impact:** the default S(k) path (used by `Ensemble`) cannot run on the N = 1e5 configurations in CONFIGURATIONS
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_structure_factor.py::test_regression_D013_direct_sum_memory_bounded; seen failing on 363ae8f: N=2000 2D collective S(k) peaked at 1.64 GB RSS (M*N = 62499*2000), i.e. ~80 GB at N=1e5
+- **Fix:** default method is one FINUFFT type-1 transform (O(N + M) memory); the direct reference sums in chunks of 2^22 phases
 
 ## D-014 — finufft S(k) rescales coordinates by diagonal box entries only
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_structure_factor.py:241-243 (`sample_xd_sf`)
 - **Symptom:** positions are divided by `lv[k, k]`, which is only the fractional coordinate for diagonal boxes; wave vectors use the full reciprocal lattice
 - **Repro:** triangular lattice in its rhombic primitive box → Bragg peaks appear at the wrong k
 - **Impact:** wrong S(k) for every non-orthogonal box
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_structure_factor.py::test_regression_D014_triclinic_bragg_peaks; seen failing on 363ae8f: triangular crystal (m=6) in rhombic cell had its S=36 peaks at |k| = 267-487 instead of 7.255
+- **Fix:** FINUFFT runs on 2*pi*fractional coordinates, exact for any cell
 
 ## D-015 — minimum image uses lattice-vector norms (wrong for non-orthogonal boxes)
 - **Found:** 2026-10-26, during the repository audit
