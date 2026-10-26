@@ -11,6 +11,9 @@ Sam Dawley
 # IMPORTS
 # ============================================================
 
+# ----- standard library -----
+from typing import Tuple
+
 # ----- third party -----
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -74,6 +77,10 @@ class PointPattern:
 
     def __len__(self) -> int:
         return self.n_points
+
+    def __reduce__(self) -> Tuple[type, Tuple[NDArray[np.float64], Box]]:
+        # rebuild through __init__ so unpickled copies are validated and read-only
+        return (PointPattern, (np.array(self._positions), self._box))
 
     @property
     def positions(self) -> NDArray[np.float64]:

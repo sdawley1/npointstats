@@ -23,13 +23,13 @@
 
 ## D-003 — __main__ unpacks two values from testing(), which returns one
 - **Found:** 2026-09-25, while porting the finufft S(k) to neurons/analyze.py
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_structure_factor.py:470 (`__main__`)
 - **Symptom:** `res, aa_res = testing(...)` unpacks a (W, d+2) array; raises ValueError unless W == 2
 - **Repro:** `python c_structure_factor.py <dir> '*'` → `ValueError: too many values to unpack`
 - **Impact:** the script cannot be run as documented
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D003_documented_invocation_runs; seen failing on 363ae8f: 'python c_structure_factor.py <dir> *' -> ValueError: too many values to unpack (expected 2)
+- **Fix:** script replaced by the npointstats CLI / python -m npointstats
 
 ## D-004 — sample_xd_sf ignores its kn argument
 - **Found:** 2026-09-25, while porting the finufft S(k) to neurons/analyze.py
@@ -43,63 +43,63 @@
 
 ## D-005 — Python module has a bash shebang
 - **Found:** 2026-09-25, while porting the finufft S(k) to neurons/analyze.py
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_structure_factor.py:1
 - **Symptom:** `#!/bin/bash` on a Python file; executing it directly runs bash on Python source
 - **Repro:** `chmod +x c_structure_factor.py && ./c_structure_factor.py` → bash syntax errors
 - **Impact:** only direct execution; `python3 c_structure_factor.py` is unaffected
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D031_python_shebangs; seen failing on 363ae8f: first line '#!/bin/bash'
+- **Fix:** all modules start with #!/usr/bin/env python3
 
 ## D-006 — Ensemble uses a mutable default argument
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/point_pattern.py:100 (`Ensemble.__init__`)
 - **Symptom:** `members: list = []` is shared by every `Ensemble()`; `load_cco` appends to it, so members leak between instances
 - **Repro:** `a = Ensemble(); a._add_member(lv, x); Ensemble().n_members` → `0`, but `Ensemble().members` already holds `a`'s member
 - **Impact:** any script building two ensembles in one process mixes their members
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D006_no_shared_member_state; seen failing on 363ae8f: a fresh Ensemble() already held 1 member
+- **Fix:** Ensemble stores an immutable tuple given at construction; no mutable defaults
 
 ## D-007 — parallel_compute_statistic calls a method that does not exist
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/point_pattern.py:211 (`Ensemble.parallel_compute_statistic`)
 - **Symptom:** `self._check_cuda()` is never defined → AttributeError on every call
 - **Repro:** `Ensemble([(np.eye(2), np.random.rand(5, 2))]).parallel_compute_statistic("sf")` → AttributeError
 - **Impact:** the parallel path has never run
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D007_parallel_path_runs_and_matches; seen failing on 363ae8f: AttributeError: 'Ensemble' object has no attribute '_check_cuda'
+- **Fix:** jobs=N uses a ProcessPoolExecutor with ordered map; identical to jobs=1
 
 ## D-008 — g2 results are never written; write errors are swallowed
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/point_pattern.py:254 (`write_statistic`), utils/readwrite.py:352 (`write_xd_data`)
 - **Symptom:** for every stat except "sf", `stat_results[stat][1]` is None; `write_xd_data(None)` raises TypeError, the bare `except:` prints "Output unsuccessfully written" and returns False, which nobody checks
 - **Repro:** `master.py -s g2 ...` → `g2_res.txt` is written, then "Output unsuccessfully written" for `g2_bin.txt`; exit code 0
 - **Impact:** silent partial output; any write failure (disk full, permissions) is hidden
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D008_g2_written_and_errors_raised; seen failing on 363ae8f: g2_bin.txt left header-only, 'Output unsuccessfully written', exit 0
+- **Fix:** results.save_result writes every statistic; no bare except; CLI exits 1 on any OSError/ValueError
 
 ## D-009 — ensemble average is element-wise across members with different boxes
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/point_pattern.py:182-183 and :230-231 (`compute_statistic`, `parallel_compute_statistic`)
 - **Symptom:** raw per-member S(k) rows are averaged index-by-index, so members whose boxes differ average S at different k vectors; for g2 the bin count depends on the box, so `np.asarray(eres)` becomes ragged and raises
 - **Repro:** two members with boxes `np.eye(2)` and `2*np.eye(2)` → averaged row 0 mixes |k|=2π with |k|=π
 - **Impact:** wrong ensemble S(k) whenever members are not in identical boxes (e.g. NPT outputs, jammed packings)
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D009_average_is_binwise (property); seen failing on 363ae8f: row 0 averaged |k|=6.283 with |k|=3.142
+- **Fix:** each member is radially binned on common edges before averaging (Ensemble.structure_factor)
 
 ## D-010 — S(k) bin width hard-coded and inconsistent between serial and parallel paths
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/point_pattern.py:190 (π/100) and :237 (π/20)
 - **Symptom:** the radial bin width is a fixed absolute constant, independent of box size and not exposed to the user; the two code paths disagree by 5x
 - **Repro:** same ensemble through `compute_statistic` vs `parallel_compute_statistic` → different number of `sf_bin.txt` rows
 - **Impact:** binned S(k) resolution silently depends on the code path and on box units
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D010_bin_width_is_a_parameter; seen failing on 363ae8f: serial pi/100 vs parallel pi/20 hard-coded
+- **Fix:** dk is a parameter (default: largest member reciprocal spacing), shared by all code paths
 
 ## D-011 — collective S(k) samples only non-negative wave-vector indices
 - **Found:** 2026-10-26, during the repository audit
@@ -203,43 +203,43 @@
 
 ## D-021 — importing c_npt_correlation forces JAX onto the CPU process-wide
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_npt_correlation.py:21-22
 - **Symptom:** sets `JAX_PLATFORMS=cpu` and `JAX_SKIP_CUDA_CONSTRAINTS_CHECK` in `os.environ` at import time
 - **Repro:** `import utils.point_pattern` then any JAX GPU code in the same process runs on CPU
 - **Impact:** hidden global side effect on unrelated code
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D021_D032_no_jax_and_no_environment_side_effects; seen failing on 363ae8f: importing utils.point_pattern set JAX_PLATFORMS=cpu
+- **Fix:** no JAX dependency; package import has no side effects
 
 ## D-022 — number variance windows get a random z-coordinate in 2D
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_number_variance.py:114 (`sample_xd_nv`)
 - **Symptom:** `np.random.rand(M, 3)` gives non-zero z for 2D boxes, which freud rejects (or mis-wraps); RNG is unseeded; neighbour counts accumulate in a Python loop over bonds (line 124)
 - **Repro:** any 2D pattern → freud error / wrong counts; two runs give different σ²(R)
 - **Impact:** 2D number variance wrong or crashes; results not reproducible
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_number_variance.py::test_regression_D022_two_dimensional_windows (+ property test_regression_D022_single_point_window_property); seen failing on 363ae8f: two identical 2D calls differed, sigma^2/v = 2298, 2163 vs binomial 1980, 1937
+- **Fix:** number_variance: seeded numpy Generator, windows in the box's own dimension, vectorised KD-tree counts (no freud)
 
 ## D-023 — CLI default file glob matches nothing
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** master.py:139-141 and :176 (`parse_input`, `--name` default `"__"`)
 - **Symptom:** default `"__"` becomes glob `"__*"`, matching only names *starting* with `__`; files like `RSA..__0000.txt` are skipped; an empty ensemble then averages to NaN
 - **Repro:** `python master.py -d patterns -s sf` on a CCO directory → "Mean of empty slice" warning, NaN output
 - **Impact:** default invocation silently produces nothing useful
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D023_default_glob_reads_group_file_names; seen failing on 363ae8f: master.py default '-n __' matched nothing, 'Mean of empty slice' warning, exit 0
+- **Fix:** default glob '*' (regular, non-hidden files); empty match raises FileNotFoundError -> exit 1
 
 ## D-024 — CLI: -s optional though required, -f unused, unsorted file order
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** master.py:162-164 (`-s`), :154-160 (`-f/--hdf5`), :98 (`dp.glob`)
 - **Symptom:** omitting `-s` → `TypeError: 'NoneType' object is not iterable`; `--hdf5` is parsed and never used; `Path.glob` order is filesystem-dependent, so member order (and parallel output order) is not reproducible
 - **Repro:** `python master.py -d patterns` → TypeError traceback
 - **Impact:** confusing CLI, non-reproducible member ordering
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D024_cli_contract; seen failing on 363ae8f: master.py without -s -> TypeError: 'NoneType' object is not iterable
+- **Fix:** -s required (argparse exit 2), --hdf5 removed, files read in sorted order
 
 ## D-025 — read_simple_data / read_chiral_active hard-code the box
 - **Found:** 2026-10-26, during the repository audit
@@ -283,53 +283,53 @@
 
 ## D-029 — library code calls sys.exit
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/readwrite.py:139, :185; utils/point_pattern.py:79, :165, :215; src/cpu_analysis/c_structure_factor.py:433
 - **Symptom:** invalid input terminates the interpreter instead of raising an exception
 - **Repro:** `Ensemble().compute_statistic("xyz")` → process exits with status 1 (kills Jupyter kernels)
 - **Impact:** callers cannot handle errors
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D029_errors_raise_instead_of_exiting; seen failing on 363ae8f: compute_statistic('xyz') terminated the interpreter with exit code 1
+- **Fix:** library raises ValueError/FileNotFoundError; only cli.main converts errors to exit codes
 
 ## D-030 — modules depend on a non-existent sys.path entry
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** master.py:20, utils/point_pattern.py:25, src/cpu_analysis/c_npt_correlation.py:30 (and other modules)
 - **Symptom:** `sys.path.append("/home/sd2402/n_point_statistics/")` — the directory does not exist; imports only work when run from the repo root
 - **Repro:** `cd /tmp && python /path/to/master.py` → ModuleNotFoundError: utils
 - **Impact:** the code cannot be installed or shared
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D030_importable_from_any_directory; seen failing on 363ae8f: sys.path entry /home/sd2402/n_point_statistics does not exist (imports only worked from the repo root)
+- **Fix:** pip-installable src-layout package; no sys.path manipulation
 
 ## D-031 — every Python module has a bash shebang
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** first line of every .py file except utils/perlin_noise.py (generalises D-005)
 - **Symptom:** `#!/bin/bash` on Python source
 - **Repro:** `chmod +x master.py && ./master.py` → bash syntax errors
 - **Impact:** direct execution fails
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D031_python_shebangs; seen failing on 363ae8f: 19 modules started with '#!/bin/bash'
+- **Fix:** all modules start with #!/usr/bin/env python3
 
 ## D-032 — utils.geom requires JAX at import for trivial helpers
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/geom.py:14-17
 - **Symptom:** `import utils.geom` (needed by point_pattern for `angular_average`) imports jax and toggles x64 globally
 - **Repro:** env without jax → `import utils.point_pattern` fails
 - **Impact:** heavy, side-effecting dependency for NumPy-only code
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_ensemble_cli.py::test_regression_D021_D032_no_jax_and_no_environment_side_effects; seen failing on 363ae8f: 'jax' in sys.modules after importing utils.point_pattern
+- **Fix:** NumPy/SciPy/FINUFFT only; JAX not a dependency
 
 ## D-033 — trapz_integrate implements neither the trapezoid nor Simpson's rule
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/geom.py:244-263 (and src/gpu_analysis/g_structure_factor.py:101-140)
 - **Symptom:** `h[0] = 0` and the weights h_i·f_i·{1,2,4}/3 do not form a quadrature rule
 - **Repro:** `trapz_integrate(jnp.linspace(0, 1, 11), jnp.ones(11))` → ≠ 1
 - **Impact:** any integral (e.g. σ² from S(k)) computed with it is wrong
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** n/a (function removed); seen failing on 363ae8f by inspection: h[0]=0 weights
+- **Fix:** removed with utils/geom.py; no custom quadrature remains (theory uses SciPy, sigma^2 from S(k) is a discrete sum)
 
 ## D-034 — rho_from_pf takes a square / cube root
 - **Found:** 2026-10-26, during the repository audit

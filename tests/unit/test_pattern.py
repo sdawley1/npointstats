@@ -61,3 +61,14 @@ def test_wrapped_and_fractional() -> None:
     pattern = PointPattern(np.array([[-0.25, 2.5]]), Box.from_lengths([1.0, 2.0]))
     np.testing.assert_allclose(pattern.wrapped(), [[0.75, 0.5]])
     np.testing.assert_allclose(pattern.fractional(), [[0.75, 0.25]])
+
+
+def test_pickle_round_trip_keeps_read_only() -> None:
+    import pickle
+
+    pattern = PointPattern(np.random.default_rng(0).random((5, 2)), Box.cubic(2.0, 2))
+    back = pickle.loads(pickle.dumps(pattern))
+    np.testing.assert_array_equal(back.positions, pattern.positions)
+    assert back.box == pattern.box
+    assert not back.positions.flags.writeable
+    assert not back.box.lattice.flags.writeable

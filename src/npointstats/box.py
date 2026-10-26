@@ -18,7 +18,7 @@ Sam Dawley
 # ============================================================
 
 # ----- standard library -----
-from typing import Sequence
+from typing import Sequence, Tuple
 
 # ----- third party -----
 import numpy as np
@@ -103,6 +103,10 @@ class Box:
 
     def __hash__(self) -> int:
         return hash(self._lattice.tobytes())
+
+    def __reduce__(self) -> Tuple[type, Tuple[NDArray[np.float64]]]:
+        # rebuild through __init__ so unpickled copies are validated and read-only
+        return (Box, (np.array(self._lattice),))
 
     # ----- properties -----
 
