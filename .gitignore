@@ -21,3 +21,6 @@ pyl-output.json
 *.log
 *.err
 npointstats_out/
+
+# benchmark run outputs
+benchmarks/bench-*.log

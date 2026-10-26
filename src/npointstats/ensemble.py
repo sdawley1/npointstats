@@ -122,6 +122,7 @@ def average_binned(results: Sequence[BinnedResult]) -> BinnedResult:
     x_mean, _, _ = _member_mean(np.stack([r.x_mean for r in results]))
     meta = dict(results[0].metadata)
     meta["n_members"] = len(results)
+    meta["n_points"] = [r.metadata.get("n_points") for r in results]
     return BinnedResult(
         edges=edges, x_mean=x_mean, mean=mean, sem=sem, counts=n, metadata=meta
     )
@@ -137,6 +138,7 @@ def average_number_variance(results: Sequence[NumberVariance]) -> NumberVariance
     mean_count, _, _ = _member_mean(np.stack([r.mean_count for r in results]))
     meta = dict(results[0].metadata)
     meta["n_members"] = len(results)
+    meta["n_points"] = [r.metadata.get("n_points") for r in results]
     meta["seed"] = [r.metadata.get("seed") for r in results]
     return NumberVariance(
         radii=results[0].radii,

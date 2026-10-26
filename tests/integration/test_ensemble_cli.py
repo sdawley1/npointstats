@@ -84,6 +84,7 @@ def test_ensemble_statistics_poisson(tmp_path: Path) -> None:
     ens = Ensemble.from_files(write_ensemble(tmp_path / "p", members=4, n=1000))
     sf = ens.structure_factor()
     assert sf.metadata["n_members"] == 4
+    assert sf.metadata["n_points"] == [1000] * 4
     assert np.all(sf.counts == 4)
     assert abs(np.average(sf.mean, weights=1 / sf.sem**2) - 1.0) < 0.05
     g2 = ens.pair_correlation()

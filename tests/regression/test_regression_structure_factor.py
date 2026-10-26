@@ -128,12 +128,13 @@ def test_regression_D012_complete_shells(box: Box, n_bins: int) -> None:
     dk = float(np.min(np.linalg.norm(box.reciprocal, axis=1)))
     sk = structure_factor(PointPattern(x, box), k_max=(n_bins + 0.5) * dk)
     res = sk.radial_average(dk=dk)
+    reach = (
+        int(sk.k_max * np.max(np.linalg.norm(box.lattice, axis=1)) / (2 * np.pi)) + 2
+    )
+    grid = np.array(list(itertools.product(range(-reach, reach + 1), repeat=2)), float)
+    k = np.linalg.norm(grid @ box.reciprocal, axis=1)
     for lo, hi, count in zip(res.edges[:-1], res.edges[1:], res.counts, strict=True):
-        want = 0
-        for n in itertools.product(range(-40, 41), repeat=2):
-            k = np.linalg.norm(np.array(n, dtype=float) @ box.reciprocal)
-            want += int(lo <= k < hi and k > 0)
-        assert count == want
+        assert count == int(np.sum((k >= lo) & (k < hi) & (k > 0)))
 
 
 # ============================================================
