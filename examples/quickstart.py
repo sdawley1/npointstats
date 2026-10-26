@@ -4,7 +4,8 @@
 Quickstart: S(k), g2(r) and sigma^2(R) of a Poisson pattern and a crystal.
 
 Run with ``python examples/quickstart.py``; it writes CSV files to a temporary
-directory and prints a short summary. Executed by CI, so it must stay fast.
+directory (removed afterwards) and prints a short summary. Executed by CI, so it
+must stay fast.
 
 Sam Dawley
 10/2026
@@ -68,12 +69,13 @@ if __name__ == "__main__":
     ensemble = nps.Ensemble(
         nps.PointPattern(rng.random((1000, 2)), box) for _ in range(4)
     )
-    out = Path(tempfile.mkdtemp(prefix="npointstats_"))
-    nps.save_result(ensemble.structure_factor(), out / "sf.csv")
-    nps.save_result(ensemble.pair_correlation(), out / "g2.csv")
-    data, columns, meta = nps.load_table(out / "sf.csv")
+    with tempfile.TemporaryDirectory(prefix="npointstats_") as tmp:
+        out = Path(tmp)
+        nps.save_result(ensemble.structure_factor(), out / "sf.csv")
+        nps.save_result(ensemble.pair_correlation(), out / "g2.csv")
+        data, columns, meta = nps.load_table(out / "sf.csv")
     print(
         f"ensemble S(k): {data.shape[0]} bins, columns {columns}, "
-        f"{meta['n_members']} members -> {out}",
+        f"{meta['n_members']} members",
         flush=True,
     )
