@@ -333,73 +333,73 @@
 
 ## D-034 — rho_from_pf takes a square / cube root
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/baus_colot.py:119, :121 (`rho_from_pf`)
 - **Symptom:** returns √(4η/πD²) (2D) and ∛(6η/πD³) (3D); ρ = 4η/(πD²), 6η/(πD³)
 - **Repro:** `rho_from_pf(0.5, 3, 1.0)` → 0.985, expected 0.955
 - **Impact:** the BC density consistency check (and any S(k) built from this ρ) is wrong
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D034_number_density_no_root; seen failing on 363ae8f: d=2 0.7979 vs 0.6366, d=3 0.9847 vs 0.9549
+- **Fix:** theory.baus_colot.number_density: rho = eta / v1(D/2)
 
 ## D-035 — bc_solve_a passes wrong Jacobians to fsolve
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/baus_colot.py:281 (2D, missing 2η² factor) and :294 (3D, `2*x` instead of 18η²x)
 - **Symptom:** `fprime` is not the derivative of the residual
 - **Repro:** compare `fprime(x)` with a finite difference of the residual at η = 0.4 → mismatch
 - **Impact:** fsolve may converge slowly or to a wrong root
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D035_a_equation_jacobian; seen failing on 363ae8f: d=2 fprime(1.5) = -5.614 vs finite difference -1.796; d=3 3.0 vs 4.32
+- **Fix:** 3D a in closed form; 2D safeguarded Newton with analytic derivative, bracket [1, 3]
 
 ## D-036 — d(ηZ)/dη by finite differences off-grid, past η = 1
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/baus_colot.py:139-140, :442-443
 - **Symptom:** the derivative is taken on a 200/500-point grid that does not contain η exactly, and for η > 0.8 the grid runs past η = 1 (pole of Z)
 - **Repro:** `bc_dcf(3, 0.45, ...)` → derivative evaluated at η ≈ 0.4498
 - **Impact:** BC c(r) inaccurate; Z is analytic, so the derivative should be too
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D036_analytic_compressibility_derivative; seen failing on 363ae8f: d=3 eta=0.45 36.879 vs 37.225; d=2 eta=0.85 546.53 vs 557.78
+- **Fix:** K = d(eta Z)/d eta computed analytically from the rational Z6 equation of state
 
 ## D-037 — Lado transform sums drop the last node
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/nft/numerical_fourier_transform.py:60, :86, :108, :133, :156, :170
 - **Symptom:** `range(1, N - 1)` instead of `range(1, N)`; Lado's sums run over i = 1…N−1
 - **Repro:** forward then inverse transform of a Gaussian does not return the input to machine precision
 - **Impact:** loss of the discrete orthogonality that makes the Lado scheme exact
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D037_lado_sums_keep_last_node; seen failing on 363ae8f: round-trip error 6.1e-2 (1D), 9.4e-1 (3D); nft(R=10, N=41) returned 500 rows
+- **Fix:** theory.hankel sums all nodes (vectorised); no silent change of N
 
 ## D-038 — percus_yevick.py cannot be imported or called
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/percus_yevick.py:17-19 (bad path, `nft_1d` not exported), :125/:127 (`D=` passed to functions without `D`), :45 (array passed where callable expected); d = 2 returns None
 - **Symptom:** ImportError on import; TypeError if fixed
 - **Repro:** `import utils.approx.percus_yevick` → ImportError
 - **Impact:** PY reference S(k) unavailable
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D038_percus_yevick_importable_and_2d_raises; seen failing on 363ae8f: ModuleNotFoundError; with imports patched py_dcf(2, 0.3) -> None and d=1 TypeError (unexpected 'D')
+- **Fix:** theory.percus_yevick rewritten; d=2 raises NotImplementedError pointing to baus_colot
 
 ## D-039 — PY and BC disagree on the ρ convention of c̃(k)
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/baus_colot.py (`bc_dcf_*` returns ρc̃), utils/approx/percus_yevick.py (`py_dcf_*` returns c̃)
 - **Symptom:** S(k) = 1/(1 − ρc̃) must be formed differently for each; tmp scripts multiply ρ twice
 - **Repro:** see utils/nft/tmp-2.py:510, :519
 - **Impact:** comparisons between closures are wrong by a factor ρ
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D039_dcf_fourier_excludes_density; seen failing on 363ae8f: BC 1D ck / exact c~ = 0.4 (= eta)
+- **Fix:** all theory functions return c~ without rho; S = 1 / (1 - rho c~)
 
 ## D-040 — Approx ABC makes its dispatcher abstract
 - **Found:** 2026-10-26, during the repository audit
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/approx_class.py (`apx_dcf` abstract; returns `1` for unsupported d)
 - **Symptom:** subclasses must re-implement the dispatcher; unsupported d returns 1 instead of raising
 - **Repro:** n/a (no subclasses exist)
 - **Impact:** design defect only
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D040_unsupported_dimension_raises; seen failing on 363ae8f: Full().apx_dcf(4, 0.5) -> 1
+- **Fix:** ABC removed; module functions dispatch on d and raise ValueError for d not in {1, 2, 3}
 
 ## D-041 — removed scratch modules (logged for the record)
 - **Found:** 2026-10-26, during the repository audit
@@ -419,3 +419,53 @@
 - **Impact:** none for users after removal
 - **Regression test:** n/a
 - **Fix:** removed
+
+## D-042 — 2D Baus–Colot c̃(k) calls np.trapz (removed in NumPy 2)
+- **Found:** 2026-10-26, while porting the theory code (subagent)
+- **Status:** open
+- **Where:** utils/approx/baus_colot.py:473 (`bc_dcf`, d = 2)
+- **Symptom:** `np.trapz` no longer exists → AttributeError
+- **Repro:** `bc_dcf(2, 0.4, ...)` under NumPy ≥ 2.0 → AttributeError
+- **Impact:** 2D BC c̃ unavailable
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-043 — bc_dcf misreads the fsolve status code
+- **Found:** 2026-10-26, while porting the theory code (subagent)
+- **Status:** open
+- **Where:** utils/approx/baus_colot.py:452 (`if not ier`)
+- **Symptom:** fsolve success is `ier == 1`; failure codes 2–5 are truthy, so failures pass silently and the initial guess is used; `arcsin(1/x)` evaluated for x < 1
+- **Repro:** 2D, η = 0.8 → fsolve returns ier = 5, a = 1.5 used silently (true a(0.8) = 1.1146)
+- **Impact:** wrong 2D BC c(r) at high packing fraction, no warning
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-044 — bc_dcf silently replaces r or q when their types differ
+- **Found:** 2026-10-26, while porting the theory code (subagent)
+- **Status:** open
+- **Where:** utils/approx/baus_colot.py:416-420
+- **Symptom:** if `type(r) != type(q)` the user's r or q is overwritten by a linspace
+- **Repro:** `bc_dcf(3, 0.3, r=0.5, q=[1, 2, 3])` → returned c(r) is not at r = 0.5
+- **Impact:** results at grid points the caller did not ask for
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-045 — closed-form c̃(k) is 0/0 at k = 0 and inaccurate at small k
+- **Found:** 2026-10-26, while porting the theory code (subagent)
+- **Status:** open
+- **Where:** utils/approx/percus_yevick.py:69-82 (also `bc_dcf_1d/3d`)
+- **Symptom:** catastrophic cancellation in the closed form as k → 0
+- **Repro:** `py_dcf_3d(0.4, q=1e-3)` → −2.2e5, `q=1e-5` → −104.7; exact c̃(0) = −31.416
+- **Impact:** S(k → 0), i.e. the compressibility, is wrong
+- **Regression test:** none yet
+- **Fix:** none yet
+
+## D-046 — bc_dcf ignores the diameter D
+- **Found:** 2026-10-26, while porting the theory code (subagent)
+- **Status:** open
+- **Where:** utils/approx/baus_colot.py:375 (`bc_dcf`)
+- **Symptom:** output for D = 2 is identical to D = 1; c(1.5) = 0 although 1.5 < D
+- **Repro:** `bc_dcf(3, 0.3, r=1.5, D=2.0)` → 0
+- **Impact:** any non-unit diameter gives wrong c(r), c̃(k)
+- **Regression test:** none yet
+- **Fix:** none yet
