@@ -12,13 +12,13 @@
 
 ## D-002 — angular_average drops the last populated bin
 - **Found:** 2026-09-25, while porting the finufft S(k) to neurons/analyze.py
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/cpu_analysis/c_structure_factor.py:120-130 (`angular_average`)
 - **Symptom:** the loop runs over `unique.size - 1` bins and the return slices `W[:-1]`, so the bin with the largest |k| is never reported; the slicing `X[ux1:ux2]` also assumes `X` is already sorted by bin
 - **Repro:** `angular_average(np.array([[0., 1.], [1., 2.], [2., 3.]]), xidx=0, yidx=1, dk=1.0)` → 1 row `[0, 1]`; the bin holding x = 1, 2 (mean S = 2.5) is lost
 - **Impact:** the highest-|k| shell is missing from every binned S(k); unsorted input gives wrong means
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_binning.py::test_regression_D002_last_bin_kept_and_unsorted_input (+ property test_regression_D002_counts_and_means_conserved); seen failing on 363ae8f: legacy angular_average returned [[0.0, 1.0]] only
+- **Fix:** binning.radial_average uses searchsorted + bincount over explicit edges (order-independent, all bins kept)
 
 ## D-003 — __main__ unpacks two values from testing(), which returns one
 - **Found:** 2026-09-25, while porting the finufft S(k) to neurons/analyze.py
