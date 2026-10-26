@@ -1,0 +1,37 @@
+#!/bin/bash
+
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem-per-cpu=80G
+#SBATCH --time=48:00:00
+#SBATCH --mail-type=begin
+#SBATCH --mail-type=end
+#SBATCH --mail-user=[PUID]@princeton.edu
+#SBATCH --job-name=asmr-copoly
+#SBATCH --output=./%A-%a.out
+
+# load modules as needed
+module purge
+module load eigen3/3.3.4
+
+# control all the input parameters here
+input_name=inputPLGA7525.in     # name of input file
+output_name=tmp.out     # name of output file
+
+I0=0.0405833        # concentrationn of initiator (mol/L)
+A0=1.9737           # concentrationn of monomer A (mol/L)
+B0=5.9211           # concentration of monomer B (mol/L)
+kAA=20.5            # each k is an initial guess at the rate constant
+kAB=4
+kBB=4
+kBA=10
+kAmA=0.5
+kAmB=0.5
+kBmB=0.5
+kBmA=0.5
+kT=0.001            # thermal energy (probably)
+accuracy_goal=0.014 # specified accuracy goal (program runs until this is achieved or timeout)
+
+# run the script
+[exe_name] "${input_name}" "${output_name}" "${IO}" "${A0}" "${B0}" "${kAA}" "${kAB}" "${kBB}" "${kBA}" "${kAmA}" "${kAmB}" "${kBmB}" "${kBmA}" "${kT}" "${accuracy_goal}"

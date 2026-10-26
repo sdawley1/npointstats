@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc.*
+*.egg-info/
+build/
+dist/
+.venv/
+
+# tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+coverage.xml
+htmlcov/
+
+# lint dumps and run outputs
+pyl-output.json
+*.log
+*.err
+npointstats_out/
