@@ -33,8 +33,8 @@ from numpy.typing import NDArray
 # ----- local modules -----
 from npointstats import __version__
 from npointstats.binning import BinnedResult
-from npointstats.number_variance import NumberVariance
-from npointstats.structure_factor import StructureFactor
+from npointstats.variance import NumberVariance
+from npointstats.structure import StructureFactor
 
 # ============================================================
 # CONSTANTS

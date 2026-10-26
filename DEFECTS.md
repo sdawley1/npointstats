@@ -522,13 +522,13 @@
 
 ## D-052 — submodules shadowed by same-named functions
 - **Found:** 2026-10-26, code review of the v0.1 refactor
-- **Status:** open
+- **Status:** fixed
 - **Where:** src/npointstats/__init__.py (re-exports `structure_factor`, `pair_correlation`, `number_variance`)
 - **Symptom:** `import npointstats.structure_factor as m` yields the function, so module helpers and monkeypatching are unreachable that way
 - **Repro:** `import npointstats.pair_correlation as m; m.pair_counts` → AttributeError
 - **Impact:** confusing API; module-level helpers inaccessible by the obvious import
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_regression_review.py::test_regression_D052_no_submodule_shadowing; seen failing before the fix: npointstats.number_variance is shadowed by <function number_variance>
+- **Fix:** modules renamed: structure_factor.py -> structure.py, pair_correlation.py -> pairs.py, number_variance.py -> variance.py; functions still exported at top level
 
 ## D-053 — uniform_edges silently extends the range when the width exceeds it
 - **Found:** 2026-10-26, code review of the v0.1 refactor

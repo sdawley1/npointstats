@@ -32,7 +32,7 @@ from npointstats.cli import main
 from npointstats.ensemble import Ensemble
 from npointstats.pattern import PointPattern
 from npointstats.results import load_table
-from npointstats.structure_factor import structure_factor
+from npointstats.structure import structure_factor
 
 # ============================================================
 # HELPERS

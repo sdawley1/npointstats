@@ -24,7 +24,7 @@ from npst_strategies import boxes, patterns
 # ----- local modules -----
 from npointstats.box import Box
 from npointstats.pattern import PointPattern
-from npointstats.structure_factor import structure_factor, wavevector_indices
+from npointstats.structure import structure_factor, wavevector_indices
 
 # ============================================================
 # CONSTANTS

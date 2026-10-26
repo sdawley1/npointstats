@@ -18,7 +18,7 @@ from hypothesis import strategies as st
 
 # ----- local modules -----
 from npointstats.box import Box
-from npointstats.number_variance import number_variance, window_counts
+from npointstats.variance import number_variance, window_counts
 from npointstats.pattern import PointPattern
 
 # ============================================================

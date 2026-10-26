@@ -43,10 +43,10 @@ from numpy.typing import ArrayLike, NDArray
 # ----- local modules -----
 from npointstats.binning import BinnedResult
 from npointstats.io import FORMATS
-from npointstats.number_variance import NumberVariance, default_radii, number_variance
-from npointstats.pair_correlation import default_dr, default_r_max, pair_correlation
+from npointstats.variance import NumberVariance, default_radii, number_variance
+from npointstats.pairs import default_dr, default_r_max, pair_correlation
 from npointstats.pattern import PointPattern
-from npointstats.structure_factor import default_dk, default_k_max, structure_factor
+from npointstats.structure import default_dk, default_k_max, structure_factor
 
 # ============================================================
 # WORKERS (module level so they pickle)

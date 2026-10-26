@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Unit and property tests for npointstats.number_variance.
+Unit and property tests for npointstats.variance.
 
 Sam Dawley
 10/2026
@@ -22,14 +22,14 @@ from scipy.integrate import quad
 
 # ----- local modules -----
 from npointstats.box import Box
-from npointstats.number_variance import (
+from npointstats.variance import (
     NumberVariance,
     alpha_tilde,
     default_radii,
     number_variance,
     window_counts,
 )
-from npointstats.pair_correlation import ball_volume
+from npointstats.pairs import ball_volume
 from npointstats.pattern import PointPattern
 
 # ============================================================

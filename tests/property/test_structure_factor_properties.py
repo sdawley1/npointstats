@@ -19,7 +19,7 @@ from npst_strategies import pattern_and_shift, patterns
 
 # ----- local modules -----
 from npointstats.pattern import PointPattern
-from npointstats.structure_factor import StructureFactor, structure_factor
+from npointstats.structure import StructureFactor, structure_factor
 
 # ============================================================
 # HELPERS

@@ -26,15 +26,15 @@ from npointstats.binning import BinnedResult, radial_average
 from npointstats.box import Box
 from npointstats.ensemble import Ensemble
 from npointstats.io import read, write_cco
-from npointstats.number_variance import (
+from npointstats.variance import (
     NumberVariance,
     number_variance,
     number_variance_from_sk,
 )
-from npointstats.pair_correlation import pair_correlation
+from npointstats.pairs import pair_correlation
 from npointstats.pattern import PointPattern
 from npointstats.results import load_table, save_result
-from npointstats.structure_factor import StructureFactor, structure_factor
+from npointstats.structure import StructureFactor, structure_factor
 
 __all__ = [
     "BinnedResult",

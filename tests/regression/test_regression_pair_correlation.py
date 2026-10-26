@@ -22,7 +22,7 @@ from hypothesis import strategies as st
 
 # ----- local modules -----
 from npointstats.box import Box
-from npointstats.pair_correlation import ball_volume, pair_correlation
+from npointstats.pairs import ball_volume, pair_correlation
 from npointstats.pattern import PointPattern
 
 # ============================================================

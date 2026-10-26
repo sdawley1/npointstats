@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Unit and property tests for npointstats.pair_correlation.
+Unit and property tests for npointstats.pairs.
 
 Sam Dawley
 10/2026
@@ -22,7 +22,7 @@ from npst_strategies import brute_force_min_image, pattern_and_shift, patterns
 
 # ----- local modules -----
 from npointstats.box import Box
-from npointstats.pair_correlation import (
+from npointstats.pairs import (
     ball_volume,
     default_r_max,
     pair_correlation,

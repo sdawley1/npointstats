@@ -24,9 +24,9 @@ import pytest
 
 # ----- local modules -----
 from npointstats.box import Box
-from npointstats.number_variance import number_variance, number_variance_from_sk
+from npointstats.variance import number_variance, number_variance_from_sk
 from npointstats.pattern import PointPattern
-from npointstats.structure_factor import structure_factor
+from npointstats.structure import structure_factor
 
 # ============================================================
 # HELPERS

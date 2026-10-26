@@ -26,7 +26,7 @@ from npointstats.cli import main
 from npointstats.ensemble import Ensemble, average_binned
 from npointstats.pattern import PointPattern
 from npointstats.results import load_table, save_result, save_structure_factor_raw
-from npointstats.structure_factor import structure_factor
+from npointstats.structure import structure_factor
 
 # ============================================================
 # FIXTURES

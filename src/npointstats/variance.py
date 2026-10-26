@@ -43,9 +43,9 @@ from scipy.spatial import cKDTree
 from scipy.special import jv
 
 # ----- local modules -----
-from npointstats.pair_correlation import PAIRS_PER_CHUNK, _image_points, ball_volume
+from npointstats.pairs import PAIRS_PER_CHUNK, _image_points, ball_volume
 from npointstats.pattern import PointPattern
-from npointstats.structure_factor import StructureFactor
+from npointstats.structure import StructureFactor
 
 # ============================================================
 # CONSTANTS

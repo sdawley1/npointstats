@@ -40,9 +40,9 @@ from npointstats.box import Box
 from npointstats.binning import BinnedResult
 from npointstats.ensemble import Ensemble
 from npointstats.io import FORMATS
-from npointstats.number_variance import NumberVariance
+from npointstats.variance import NumberVariance
 from npointstats.results import save_result, save_structure_factor_raw
-from npointstats.structure_factor import structure_factor
+from npointstats.structure import structure_factor
 
 # ============================================================
 # CONSTANTS

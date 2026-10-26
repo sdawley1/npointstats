@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Unit tests for npointstats.structure_factor.
+Unit tests for npointstats.structure.
 
 Sam Dawley
 10/2026
@@ -21,7 +21,7 @@ import pytest
 # ----- local modules -----
 from npointstats.box import Box
 from npointstats.pattern import PointPattern
-from npointstats.structure_factor import (
+from npointstats.structure import (
     default_dk,
     default_k_max,
     shell_edges,
