@@ -128,3 +128,40 @@ def test_binning_input_errors() -> None:
             np.zeros(1),
             np.zeros(1, int),
         )
+
+
+@st.composite
+def edges_and_values(draw: st.DrawFn) -> tuple[np.ndarray, np.ndarray]:
+    nb = draw(st.integers(1, 50))
+    start = draw(st.floats(-5.0, 5.0))
+    width = draw(st.floats(1e-3, 2.0))
+    if draw(st.booleans()):
+        edges = start + width * np.arange(nb + 1, dtype=float)
+    else:
+        steps = draw(hnp.arrays(np.float64, nb, elements=st.floats(1e-3, 2.0)))
+        edges = start + np.concatenate([[0.0], np.cumsum(steps)])
+    picks = draw(
+        hnp.arrays(np.int64, draw(st.integers(0, 30)), elements=st.integers(0, nb))
+    )
+    noise = draw(hnp.arrays(np.float64, picks.size, elements=st.floats(-3.0, 3.0)))
+    # values exactly on edges, on their float neighbours, and in between
+    on_edge = edges[picks]
+    near = np.nextafter(on_edge, on_edge + np.sign(noise + 1e-300))
+    spread = start + noise * width * nb
+    return edges, np.concatenate([on_edge, near, spread])
+
+
+@given(edges_and_values())
+@example(
+    (
+        np.array([0.0, 0.1, 0.2, 0.3]),
+        np.array([0.0, 0.1, 0.2, 0.3, 0.30000000000000004]),
+    )
+)
+def test_bin_indices_match_searchsorted(case: tuple[np.ndarray, np.ndarray]) -> None:
+    from npointstats.binning import bin_indices
+
+    edges, values = case
+    want = np.searchsorted(edges, values, side="right") - 1
+    want[(want < 0) | (want >= edges.size - 1)] = -1
+    np.testing.assert_array_equal(bin_indices(edges, values), want)

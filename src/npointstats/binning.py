@@ -97,6 +97,40 @@ def uniform_edges(width: float, stop: float, start: float = 0.0) -> NDArray[np.f
     return np.asarray(start + width * np.arange(nbins + 1, dtype=np.float64))
 
 
+def bin_indices(edges: ArrayLike, values: ArrayLike) -> NDArray[np.int64]:
+    """
+    Index i of the half-open bin [edges[i], edges[i+1]) holding each value.
+
+    Values outside [edges[0], edges[-1]) get -1. Equivalent to
+    ``searchsorted(edges, values, side="right") - 1`` (with out-of-range values
+    mapped to -1), but O(1) per value for uniform edges: a floor division
+    followed by one exact comparison against the stored edges.
+
+    Examples
+    --------
+    >>> bin_indices([0.0, 0.1, 0.2, 0.3], [0.0, 0.1, 0.25, 0.3, -1.0]).tolist()
+    [0, 1, 2, -1, -1]
+    """
+    e = np.asarray(edges, dtype=np.float64).ravel()
+    v = np.asarray(values, dtype=np.float64).ravel()
+    if e.size < 2 or not np.all(np.diff(e) > 0):
+        raise ValueError("edges must be strictly increasing with at least 2 entries")
+    nbins = e.size - 1
+    width = np.diff(e)
+    if np.allclose(width, width[0], rtol=1e-9, atol=0.0):
+        with np.errstate(invalid="ignore"):
+            guess = np.floor((v - e[0]) / width[0])
+        idx = np.clip(np.nan_to_num(guess, nan=0.0), 0, nbins - 1).astype(np.int64)
+        # floor can be off by one at an edge; fix with the exact edge values
+        idx -= (v < e[idx]) & (idx > 0)
+        idx += (v >= e[idx + 1]) & (idx < nbins - 1)
+    else:
+        idx = np.searchsorted(e, v, side="right").astype(np.int64) - 1
+    out = (v < e[0]) | (v >= e[-1]) | ~np.isfinite(v)
+    idx[out] = -1
+    return np.asarray(idx, dtype=np.int64)
+
+
 def radial_average(x: ArrayLike, y: ArrayLike, edges: ArrayLike) -> BinnedResult:
     """
     Average `y` over bins of `x`.
@@ -130,8 +164,8 @@ def radial_average(x: ArrayLike, y: ArrayLike, edges: ArrayLike) -> BinnedResult
     if e.size < 2 or not np.all(np.diff(e) > 0):
         raise ValueError("edges must be strictly increasing with at least 2 entries")
     nbins = e.size - 1
-    idx = np.searchsorted(e, xs, side="right") - 1
-    ok = (idx >= 0) & (idx < nbins)
+    idx = bin_indices(e, xs)
+    ok = idx >= 0
     idx, xs, ys = idx[ok], xs[ok], ys[ok]
     counts = np.bincount(idx, minlength=nbins).astype(np.int64)
     with np.errstate(invalid="ignore", divide="ignore"):

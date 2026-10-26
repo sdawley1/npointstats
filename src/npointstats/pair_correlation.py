@@ -37,7 +37,7 @@ from numpy.typing import ArrayLike, NDArray
 from scipy.spatial import cKDTree
 
 # ----- local modules -----
-from npointstats.binning import BinnedResult, uniform_edges
+from npointstats.binning import BinnedResult, bin_indices, uniform_edges
 from npointstats.pattern import PointPattern
 
 # ============================================================
@@ -141,8 +141,8 @@ def pair_counts(pattern: PointPattern, edges: ArrayLike) -> NDArray[np.int64]:
     for start in range(0, pattern.n_points, chunk):
         query = cKDTree(x[start : start + chunk], boxsize=boxsize)
         dist = query.sparse_distance_matrix(target, e[-1], output_type="ndarray")["v"]
-        idx = np.searchsorted(e, dist, side="right") - 1
-        counts += np.bincount(idx[(idx >= 0) & (idx < nbins)], minlength=nbins)
+        idx = bin_indices(e, dist)
+        counts += np.bincount(idx[idx >= 0], minlength=nbins)
     if e[0] == 0.0:
         counts[0] -= pattern.n_points  # remove the i == j self pairs
     if np.any(counts < 0):

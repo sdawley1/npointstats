@@ -35,13 +35,18 @@ from npointstats.pattern import PointPattern
 # ============================================================
 
 
-def brute_force_counts(pattern: PointPattern, edges: np.ndarray) -> np.ndarray:
-    """Ordered-pair histogram from all N^2 brute-force minimum images."""
+def brute_force_distances(pattern: PointPattern) -> np.ndarray:
+    """All N(N-1) ordered-pair distances from brute-force minimum images."""
     x = pattern.positions
     dx = (x[:, None, :] - x[None, :, :]).reshape(-1, pattern.dimension)
     r = np.linalg.norm(brute_force_min_image(pattern.box, dx), axis=1)
     r = r.reshape(pattern.n_points, pattern.n_points)
-    r = r[~np.eye(pattern.n_points, dtype=bool)]
+    return np.asarray(r[~np.eye(pattern.n_points, dtype=bool)])
+
+
+def brute_force_counts(pattern: PointPattern, edges: np.ndarray) -> np.ndarray:
+    """Ordered-pair histogram from all N^2 brute-force minimum images."""
+    r = brute_force_distances(pattern)
     idx = np.searchsorted(edges, r, side="right") - 1
     nb = edges.size - 1
     return np.bincount(idx[(idx >= 0) & (idx < nb)], minlength=nb)
@@ -126,9 +131,15 @@ def test_nonzero_first_edge_excludes_self_pairs() -> None:
 def test_pair_counts_match_brute_force(pattern: PointPattern) -> None:
     r_in = pattern.box.inscribed_radius
     edges = np.linspace(0.0, r_in, 7)
-    np.testing.assert_array_equal(
-        pair_counts(pattern, edges), brute_force_counts(pattern, edges)
-    )
+    got = pair_counts(pattern, edges)
+    want = brute_force_counts(pattern, edges)
+    # distances within rounding of an edge may land on either side (e.g. a pair
+    # exactly L/2 apart, where two images tie); nothing else may differ
+    r = brute_force_distances(pattern)
+    near = np.abs(r[:, None] - edges[None, :]) <= 1e-12 * max(1.0, r_in)
+    assert np.abs(got - want).sum() <= 2 * near.any(axis=1).sum()
+    if not near.any():
+        np.testing.assert_array_equal(got, want)
 
 
 @given(patterns(min_n=2, max_n=25))
