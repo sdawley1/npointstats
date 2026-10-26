@@ -422,50 +422,50 @@
 
 ## D-042 — 2D Baus–Colot c̃(k) calls np.trapz (removed in NumPy 2)
 - **Found:** 2026-10-26, while porting the theory code (subagent)
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/baus_colot.py:473 (`bc_dcf`, d = 2)
 - **Symptom:** `np.trapz` no longer exists → AttributeError
 - **Repro:** `bc_dcf(2, 0.4, ...)` under NumPy ≥ 2.0 → AttributeError
 - **Impact:** 2D BC c̃ unavailable
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D042_bc_2d_fourier_numpy2 (+ property test_bc_fourier_matches_quadrature); seen failing on 363ae8f: AttributeError: module 'numpy' has no attribute 'trapz'
+- **Fix:** 2D BC c~ = analytic disk-overlap transform minus Gauss-Legendre core correction
 
 ## D-043 — bc_dcf misreads the fsolve status code
 - **Found:** 2026-10-26, while porting the theory code (subagent)
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/baus_colot.py:452 (`if not ier`)
 - **Symptom:** fsolve success is `ier == 1`; failure codes 2–5 are truthy, so failures pass silently and the initial guess is used; `arcsin(1/x)` evaluated for x < 1
 - **Repro:** 2D, η = 0.8 → fsolve returns ier = 5, a = 1.5 used silently (true a(0.8) = 1.1146)
 - **Impact:** wrong 2D BC c(r) at high packing fraction, no warning
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D043_bc_2d_a_converges_at_high_density (+ property test_bc_2d_a_is_root_up_to_high_density); seen failing on 363ae8f: eta=0.8/0.85/0.9 legacy a=1.5 (ier=5 accepted)
+- **Fix:** safeguarded Newton solve with residual check; ValueError if no root
 
 ## D-044 — bc_dcf silently replaces r or q when their types differ
 - **Found:** 2026-10-26, while porting the theory code (subagent)
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/baus_colot.py:416-420
 - **Symptom:** if `type(r) != type(q)` the user's r or q is overwritten by a linspace
 - **Repro:** `bc_dcf(3, 0.3, r=0.5, q=[1, 2, 3])` → returned c(r) is not at r = 0.5
 - **Impact:** results at grid points the caller did not ask for
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D044_outputs_at_caller_grid (+ property test_bc_evaluates_at_caller_points); seen failing on 363ae8f: bc_dcf(3, 0.3, r=0.5, q=[1,2,3]) returned c(r) of shape (3,)
+- **Fix:** functions take r and k separately and evaluate exactly there, preserving shape
 
 ## D-045 — closed-form c̃(k) is 0/0 at k = 0 and inaccurate at small k
 - **Found:** 2026-10-26, while porting the theory code (subagent)
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/percus_yevick.py:69-82 (also `bc_dcf_1d/3d`)
 - **Symptom:** catastrophic cancellation in the closed form as k → 0
 - **Repro:** `py_dcf_3d(0.4, q=1e-3)` → −2.2e5, `q=1e-5` → −104.7; exact c̃(0) = −31.416
 - **Impact:** S(k → 0), i.e. the compressibility, is wrong
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D045_small_k_no_cancellation (+ properties test_bc_small_k_taylor, test_py_small_k_taylor); seen failing on 363ae8f: py_dcf_3d q=0 -> nan, 1e-3 -> -223244.5, 1e-5 -> -104.7 (exact -31.416)
+- **Fix:** theory.hankel.ball_polynomial_transform switches to a Taylor series for kD < 2
 
 ## D-046 — bc_dcf ignores the diameter D
 - **Found:** 2026-10-26, while porting the theory code (subagent)
-- **Status:** open
+- **Status:** fixed
 - **Where:** utils/approx/baus_colot.py:375 (`bc_dcf`)
 - **Symptom:** output for D = 2 is identical to D = 1; c(1.5) = 0 although 1.5 < D
 - **Repro:** `bc_dcf(3, 0.3, r=1.5, D=2.0)` → 0
 - **Impact:** any non-unit diameter gives wrong c(r), c̃(k)
-- **Regression test:** none yet
-- **Fix:** none yet
+- **Regression test:** tests/regression/test_theory_regressions.py::test_regression_D046_diameter_is_used (+ properties test_bc_diameter_scaling, test_dcf_real_space_scales_with_diameter); seen failing on 363ae8f: c(r=1.5; D=2) = -0.0
+- **Fix:** diameter scales r and k: c~(k; D) = D^d c~(kD; 1)
