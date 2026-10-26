@@ -1,4 +1,6 @@
 # Fast checks only; revs pinned to release tags (never branches).
+# tests/data holds verbatim real input files (trailing tabs are part of the format).
+exclude: ^tests/data/
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

@@ -52,7 +52,9 @@ def test_bounds_and_inversion_symmetry(pattern: PointPattern) -> None:
     assert np.all(sk.values <= pattern.n_points * (1 + 1e-9))
     assert np.all(sk.k <= sk.k_max * (1 + 1e-12))
     # S(k) = S(-k): match each vector with its negative
-    lookup = {tuple(np.round(k, 9)): v for k, v in zip(sk.k_vectors, sk.values, strict=True)}
+    lookup = {
+        tuple(np.round(k, 9)): v for k, v in zip(sk.k_vectors, sk.values, strict=True)
+    }
     for k, v in zip(sk.k_vectors, sk.values, strict=True):
         np.testing.assert_allclose(lookup[tuple(np.round(-k, 9))], v, atol=1e-8)
 

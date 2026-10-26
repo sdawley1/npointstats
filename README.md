@@ -39,11 +39,11 @@ import npointstats as nps
 rng = np.random.default_rng(0)
 pattern = nps.PointPattern(rng.random((2000, 2)), nps.Box.cubic(1.0, 2))
 
-sk = nps.structure_factor(pattern)              # all k with 0 < |k| <= 6 pi rho^(1/2)
-sk_binned = sk.radial_average()                 # shells of width 2 pi / L
-g2 = nps.pair_correlation(pattern, dr=0.002)    # r up to min(10 rho^-1/2, L/2)
+sk = nps.structure_factor(pattern)  # all k with 0 < |k| <= 6 pi rho^(1/2)
+sk_binned = sk.radial_average()  # shells of width 2 pi / L
+g2 = nps.pair_correlation(pattern, dr=0.002)  # r up to min(10 rho^-1/2, L/2)
 nv = nps.number_variance(pattern, n_windows=5000, seed=1)
-nv_exact = nps.number_variance_from_sk(sk, nv.radii)   # same quantity via S(k)
+nv_exact = nps.number_variance_from_sk(sk, nv.radii)  # same quantity via S(k)
 
 # ensembles (members may have different boxes and N)
 ens = nps.Ensemble.from_files("patterns/", glob="*__*", fmt="cco")
