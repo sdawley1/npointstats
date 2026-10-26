@@ -7,7 +7,8 @@ First packaged release. Rewrite of the original `n_point_statistics` scripts
 
 ### Added
 - `npointstats` package (src layout, `pyproject.toml`, MIT license) with
-  `Box`, `PointPattern`, `Ensemble`, `structure_factor`, `pair_correlation`,
+  `Box` (with internal LLL/Minkowski lattice reduction), `PointPattern`,
+  `Ensemble`, `structure_factor`, `pair_correlation`,
   `number_variance`, `number_variance_from_sk`, `radial_average`, readers for
   CCO / Donev / LSTJ / morse-FIRE / plain files, lossless `write_cco`, and
   self-describing CSV/NPZ result files.
@@ -18,7 +19,8 @@ First packaged release. Rewrite of the original `n_point_statistics` scripts
 - CI workflow, pre-commit configuration, benchmarks, example SLURM job.
 
 ### Fixed
-- 46 defects logged in `DEFECTS.md` (D-001 … D-046), among them:
+- 56 defects logged in `DEFECTS.md`: D-001 … D-046 in the original code, and
+  D-047 … D-056 found by review of the new code before release. Among them:
   - wrong S(k) and g₂ in non-orthogonal boxes;
   - a biased g₂ shell volume and bin positions;
   - one-octant wave-vector sampling and incomplete large-|k| shells;
