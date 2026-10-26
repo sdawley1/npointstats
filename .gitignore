@@ -24,3 +24,4 @@ npointstats_out/
 
 # benchmark run outputs
 benchmarks/bench-*.log
+benchmarks/results-[0-9]*.json
